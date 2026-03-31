@@ -13,11 +13,13 @@ import { Button } from '@/components/ui/button'
 import { usePayloadStore } from '@/store/payloadStore'
 import { useAgentStore } from '@/store/agentStore'
 import { useAgentStream } from '@/hooks/useAgentStream'
+import { useMockSeed } from '@/hooks/useMockSeed' // MOCK: remove when backend is live
 
 export default function DashboardPage() {
   const { current: payload } = usePayloadStore()
   const { isStreaming } = useAgentStore()
   const { triggerRun } = useAgentStream()
+  useMockSeed() // MOCK: remove when backend is live
 
   const handleRun = () => triggerRun('dengue_outbreak')
 
