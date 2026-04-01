@@ -27,7 +27,7 @@ export function useAgentStream() {
     if (socketRef.current?.connected) return
 
     const socket = io(WS_URL, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
       reconnectionDelay: 1500,
     })

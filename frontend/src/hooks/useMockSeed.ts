@@ -32,7 +32,7 @@ export function useMockSeed() {
     ;(['sentinel', 'orchestrator', 'operator', 'communicator'] as const).forEach(
       (name) => {
         setAgentStatus({
-          agentName: name,
+          agent: name,
           status: agentSummary[name].status,
           timestamp: agentSummary[name].completedAt ?? new Date().toISOString(),
         })

@@ -12,7 +12,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { ChartConfig } from '@/types/hemas-mind-payload'
+import { ReferenceLines } from './ReferenceLines'
+import type { ChartSpec } from '@/types/hemas-mind-payload'
 
 // ── Custom tooltip ────────────────────────────────────────────
 interface TooltipPayloadEntry {
@@ -56,37 +57,34 @@ function ChartTooltip({
   )
 }
 
-// ── Shared axis styles ────────────────────────────────────────
 const axisStyle = {
   tick: { fontSize: 11, fill: 'hsl(215 20% 52%)' },
   tickLine: false as const,
   axisLine: false as const,
 }
 
-// ── Main component ────────────────────────────────────────────
 interface LineChartRendererProps {
-  config: ChartConfig
+  spec: ChartSpec
 }
 
-export function LineChartRenderer({ config }: LineChartRendererProps) {
+export function LineChartRenderer({ spec }: LineChartRendererProps) {
   const {
     data,
     series,
-    xAxisKey,
+    x_axis_key,
     unit,
-    showConfidenceBand,
-    confidenceUpperKey,
-    confidenceLowerKey,
-  } = config
+    show_confidence_band,
+    confidence_upper_key,
+    confidence_lower_key,
+    reference_lines,
+  } = spec
 
-  // Filter out the confidence band series from the legend/lines
-  const mainSeries = series.filter(
-    (s) => s.type !== 'confidence_upper' && s.type !== 'confidence_lower'
-  )
+  // Main series excludes confidence band series
+  const mainSeries = series.filter((s) => !s.is_confidence_band)
 
-  const gradientId = `conf-${config.id}`
+  const gradientId = `conf-${spec.id}`
 
-  if (showConfidenceBand && confidenceUpperKey && confidenceLowerKey) {
+  if (show_confidence_band && confidence_upper_key && confidence_lower_key) {
     return (
       <ResponsiveContainer width="100%" height={224}>
         <ComposedChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
@@ -101,7 +99,7 @@ export function LineChartRenderer({ config }: LineChartRendererProps) {
             stroke="hsl(217 33% 19%)"
             vertical={false}
           />
-          <XAxis dataKey={xAxisKey} {...axisStyle} />
+          <XAxis dataKey={x_axis_key} {...axisStyle} />
           <YAxis
             {...axisStyle}
             tickFormatter={(v: number) => v.toLocaleString()}
@@ -111,16 +109,15 @@ export function LineChartRenderer({ config }: LineChartRendererProps) {
             wrapperStyle={{ fontSize: 11, color: 'hsl(215 20% 62%)' }}
             iconType="line"
           />
-          {/* Confidence band — rendered as two Areas, lower fills to transparent */}
           <Area
-            dataKey={confidenceUpperKey}
+            dataKey={confidence_upper_key}
             stroke="transparent"
             fill={`url(#${gradientId})`}
             legendType="none"
             connectNulls
           />
           <Area
-            dataKey={confidenceLowerKey}
+            dataKey={confidence_lower_key}
             stroke="transparent"
             fill="transparent"
             legendType="none"
@@ -128,17 +125,18 @@ export function LineChartRenderer({ config }: LineChartRendererProps) {
           />
           {mainSeries.map((s) => (
             <Line
-              key={s.dataKey}
+              key={s.key}
               type="monotone"
-              dataKey={s.dataKey}
+              dataKey={s.key}
               name={s.label}
               stroke={s.color}
               strokeWidth={2}
               dot={false}
-              strokeDasharray={s.strokeDasharray}
+              strokeDasharray={s.stroke_dasharray}
               connectNulls
             />
           ))}
+          {reference_lines && <ReferenceLines lines={reference_lines} />}
         </ComposedChart>
       </ResponsiveContainer>
     )
@@ -152,7 +150,7 @@ export function LineChartRenderer({ config }: LineChartRendererProps) {
           stroke="hsl(217 33% 19%)"
           vertical={false}
         />
-        <XAxis dataKey={xAxisKey} {...axisStyle} />
+        <XAxis dataKey={x_axis_key} {...axisStyle} />
         <YAxis
           {...axisStyle}
           tickFormatter={(v: number) => v.toLocaleString()}
@@ -164,17 +162,18 @@ export function LineChartRenderer({ config }: LineChartRendererProps) {
         />
         {mainSeries.map((s) => (
           <Line
-            key={s.dataKey}
+            key={s.key}
             type="monotone"
-            dataKey={s.dataKey}
+            dataKey={s.key}
             name={s.label}
             stroke={s.color}
             strokeWidth={2}
             dot={false}
-            strokeDasharray={s.strokeDasharray}
+            strokeDasharray={s.stroke_dasharray}
             connectNulls
           />
         ))}
+        {reference_lines && <ReferenceLines lines={reference_lines} />}
       </LineChart>
     </ResponsiveContainer>
   )

@@ -40,9 +40,9 @@ export const useAgentStore = create<AgentState>()(
       isConnected: false,
       isStreaming: false,
 
-      setAgentStatus: ({ agentName, status }) =>
+      setAgentStatus: ({ agent, status }) =>
         set((state) => ({
-          statuses: { ...state.statuses, [agentName]: status },
+          statuses: { ...state.statuses, [agent]: status },
         })),
 
       appendThought: (thought) =>

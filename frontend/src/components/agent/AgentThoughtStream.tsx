@@ -26,7 +26,7 @@ const thoughtPrefix: Record<ThoughtType, string> = {
 
 // ── Single log line ───────────────────────────────────────────
 function ThoughtLine({ thought }: { thought: AgentThought }) {
-  const colour = agentColour[thought.agentName] ?? 'text-muted-foreground'
+  const colour = agentColour[thought.agent] ?? 'text-muted-foreground'
   const prefix = thoughtPrefix[thought.type]
   const time = new Date(thought.timestamp).toLocaleTimeString('en-US', {
     hour12: false,
@@ -39,7 +39,7 @@ function ThoughtLine({ thought }: { thought: AgentThought }) {
     <div className="flex gap-2 py-0.5 font-mono text-xs leading-relaxed">
       <span className="flex-shrink-0 tabular-nums text-muted-foreground/50">{time}</span>
       <span className={cn('flex-shrink-0 font-semibold capitalize', colour)}>
-        [{thought.agentName}]
+        [{thought.agent}]
       </span>
       <span className="flex-shrink-0">{prefix}</span>
       <span

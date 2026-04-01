@@ -6,29 +6,80 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { ChartFactory } from './ChartFactory'
-import type { ChartConfig } from '@/types/hemas-mind-payload'
+import { AlertBanner } from '@/components/dashboard/AlertBanner'
+import { KpiRow } from '@/components/dashboard/KpiRow'
+import { InsightsPanel } from '@/components/dashboard/InsightsPanel'
+import { ActionsPanel } from '@/components/dashboard/ActionsPanel'
+import { RegionBadge } from '@/components/shared/RegionBadge'
+import { ConfidenceIndicator } from '@/components/agent/ConfidenceIndicator'
+import type { HemasMindPayload } from '@/types/hemas-mind-payload'
 
 interface AgenticChartProps {
-  config: ChartConfig
+  payload: HemasMindPayload
+  isLoading?: boolean
 }
 
 /**
- * Root smart chart component consumed by the dashboard.
- * Wraps a Card shell around ChartFactory — the only place in the tree
- * that knows about both the Card layout and the chart type.
+ * Root analysis component consumed by the dashboard.
+ * Renders the full HemasMindPayload: alert → card header → KPIs → chart → insights → actions.
  */
-export function AgenticChart({ config }: AgenticChartProps) {
+export function AgenticChart({ payload, isLoading }: AgenticChartProps) {
+  const { layout, metadata, alert, kpis, chart, insights, actions } = payload
+
+  if (!layout || !metadata || !chart) return null
+
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold">{config.title}</CardTitle>
-        {config.subtitle && (
-          <CardDescription className="text-xs">{config.subtitle}</CardDescription>
-        )}
-      </CardHeader>
-      <CardContent>
-        <ChartFactory config={config} />
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {/* Alert banner — only shown when present */}
+      {alert && <AlertBanner alert={alert} />}
+
+      {/* Main card: header + KPIs + chart */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-base font-semibold">{layout.title}</CardTitle>
+              {layout.summary && (
+                <CardDescription className="mt-1 text-xs leading-relaxed">
+                  {layout.summary}
+                </CardDescription>
+              )}
+            </div>
+            <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+              <ConfidenceIndicator
+                score={metadata.confidence_score}
+                model_used={metadata.model_used}
+              />
+            </div>
+          </div>
+
+          {/* Region badges + date range */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {(layout.regions_covered ?? []).map((region) => (
+              <RegionBadge key={region} region={region} />
+            ))}
+            {layout.date_range && (
+              <span className="text-xs text-muted-foreground">{layout.date_range}</span>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {/* KPI tiles */}
+          {kpis?.length > 0 && <KpiRow kpis={kpis} />}
+
+          {/* Chart */}
+          <div className="h-[400px]">
+            <ChartFactory spec={chart} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Insights & Actions */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <InsightsPanel insights={insights ?? []} />
+        <ActionsPanel actions={actions ?? []} />
+      </div>
+    </div>
   )
 }

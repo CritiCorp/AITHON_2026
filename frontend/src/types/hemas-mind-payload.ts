@@ -2,119 +2,108 @@
 // HemasMind Payload — single source of truth for the data contract
 // All interfaces mirror exactly what the Communicator Agent emits.
 // The frontend NEVER mutates these; it only renders them.
+// Spec version: 1.1
 // ================================================================
 
-export type Severity = 'low' | 'medium' | 'high' | 'critical'
-export type AlertSeverity = 'warning' | 'critical'
-export type KpiStatus = 'healthy' | 'warning' | 'critical'
-export type TrendDirection = 'up' | 'down' | 'stable'
-export type ChartType = 'line' | 'bar'
-export type InsightType = 'observation' | 'recommendation' | 'risk' | 'opportunity'
-export type InsightSeverity = 'info' | 'warning' | 'critical'
-export type ActionType =
-  | 'generate_po'
-  | 'notify_supplier'
-  | 'redistribute_stock'
-  | 'custom'
-export type ActionVariant = 'primary' | 'secondary' | 'destructive'
 export type AgentStatus = 'idle' | 'running' | 'completed' | 'error'
 export type AgentName = 'sentinel' | 'orchestrator' | 'operator' | 'communicator'
 export type ThoughtType = 'thought' | 'action' | 'observation' | 'result' | 'error'
+export type ChartType = 'line' | 'bar' | 'area' | 'composed' | 'pie' | 'scatter'
 
 // ── Metadata ──────────────────────────────────────────────────
 export interface PayloadMetadata {
-  /** ISO-8601 timestamp of when the Communicator packaged this payload */
-  timestamp: string
-  /** Machine-readable scenario key, e.g. "dengue_outbreak_western_province" */
-  scenario: string
-  /** Human-readable region, e.g. "Western Province" */
-  region: string
-  /** Target product, e.g. "Paracetamol 500mg" */
-  product: string
-  severity: Severity
-  /** Unique ID for this agent pipeline run */
-  runId: string
+  agent_name: AgentName
+  reasoning_id: string
+  generated_at: string
+  confidence_score: number
+  model_used: string
+  processing_time_ms: number
+}
+
+// ── Layout ────────────────────────────────────────────────────
+export interface PayloadLayout {
+  title: string
+  summary: string
+  regions_covered: string[]
+  date_range: string
+  source_module: string
 }
 
 // ── Alert banner ───────────────────────────────────────────────
-export interface Alert {
-  type: 'stockout_risk' | 'demand_spike' | 'outbreak' | 'supply_disruption'
-  severity: AlertSeverity
+export interface AlertBanner {
+  level: 'critical' | 'warning' | 'info'
   title: string
   message: string
-  region: string
-  affectedProducts: string[]
-  /** How many days until projected stockout (optional) */
-  daysUntilStockout?: number
+  detected_at: string
+  source: string
 }
 
 // ── KPI tiles ─────────────────────────────────────────────────
-export interface KpiMetric {
+export interface KpiTile {
   id: string
   label: string
   value: string | number
   unit?: string
-  trend?: TrendDirection
+  trend?: 'up' | 'down' | 'stable'
   /** Formatted change string, e.g. "+340%" */
-  trendValue?: string
-  status: KpiStatus
-  /** Secondary label, e.g. "vs. last week" */
-  subLabel?: string
+  trend_value?: string
+  status: 'critical' | 'warning' | 'good' | 'neutral'
+  sub_label?: string
 }
 
 // ── Charts ────────────────────────────────────────────────────
 export interface ChartDataPoint {
-  [key: string]: string | number | null
+  [key: string]: string | number | null | boolean
 }
 
-export interface ChartSeries {
-  dataKey: string
+export interface DataSeries {
+  key: string
   label: string
   color: string
   /** SVG stroke-dasharray for dashed/dotted lines (e.g. forecast) */
-  strokeDasharray?: string
-  type?: 'actual' | 'forecast' | 'confidence_upper' | 'confidence_lower'
+  stroke_dasharray?: string
+  is_comparison?: boolean
+  is_forecast?: boolean
+  is_confidence_band?: boolean
+  stack_id?: string
 }
 
-export interface ChartConfig {
+export interface ReferenceLine {
+  value: number
+  label: string
+  color: string
+  stroke_dasharray?: string
+}
+
+export interface ChartSpec {
   id: string
   type: ChartType
   title: string
   subtitle?: string
   data: ChartDataPoint[]
-  series: ChartSeries[]
-  xAxisKey: string
+  series: DataSeries[]
+  x_axis_key: string
   unit?: string
   /** Render shaded confidence band between upper/lower keys */
-  showConfidenceBand?: boolean
-  confidenceUpperKey?: string
-  confidenceLowerKey?: string
-}
-
-// ── Insights ──────────────────────────────────────────────────
-export interface Insight {
-  id: string
-  type: InsightType
-  severity: InsightSeverity
-  text: string
-  /** Which agent generated this insight */
-  source: AgentName
+  show_confidence_band?: boolean
+  confidence_upper_key?: string
+  confidence_lower_key?: string
+  reference_lines?: ReferenceLine[]
 }
 
 // ── Recommended actions ───────────────────────────────────────
-export interface Action {
+export interface AgentAction {
   id: string
   label: string
   description: string
-  type: ActionType
+  type: 'primary' | 'secondary' | 'danger' | 'ghost'
   /** Next.js API route to call, e.g. "/api/procurement/generate-po" */
   endpoint: string
   method: 'POST' | 'GET'
   /** Extra body fields merged with payload context at call time */
   payload?: Record<string, unknown>
-  variant: ActionVariant
-  requiresConfirmation?: boolean
-  confirmationMessage?: string
+  requires_confirmation?: boolean
+  confirmation_message?: string
 }
 
 // ── Agent run summary ─────────────────────────────────────────
@@ -135,20 +124,22 @@ export interface AgentSummary {
 
 // ── Root payload (what Communicator Agent emits) ──────────────
 export interface HemasMindPayload {
+  version: '1.0' | '1.1'
   metadata: PayloadMetadata
+  layout: PayloadLayout
   /** Null when no active alert */
-  alert: Alert | null
-  kpis: KpiMetric[]
-  charts: ChartConfig[]
-  insights: Insight[]
-  actions: Action[]
+  alert: AlertBanner | null
+  kpis: KpiTile[]
+  chart: ChartSpec
+  insights: string[]
+  actions: AgentAction[]
   agentSummary: AgentSummary
 }
 
 // ── WebSocket / streaming events ──────────────────────────────
 export interface AgentThought {
   id: string
-  agentName: AgentName
+  agent: AgentName
   type: ThoughtType
   message: string
   /** ISO-8601 */
@@ -156,7 +147,7 @@ export interface AgentThought {
 }
 
 export interface AgentStatusUpdate {
-  agentName: AgentName
+  agent: AgentName
   status: AgentStatus
   message?: string
   /** ISO-8601 */

@@ -1,8 +1,8 @@
 'use client'
 
 import {
-  Bar,
-  BarChart,
+  Area,
+  AreaChart,
   CartesianGrid,
   Legend,
   ResponsiveContainer,
@@ -38,7 +38,7 @@ function ChartTooltip({
       {payload.map((entry) => (
         <div key={entry.name} className="flex items-center gap-2">
           <span
-            className="h-2 w-2 flex-shrink-0 rounded-sm"
+            className="h-2 w-2 flex-shrink-0 rounded-full"
             style={{ background: entry.color }}
           />
           <span className="text-muted-foreground">{entry.name}:</span>
@@ -60,16 +60,24 @@ const axisStyle = {
   axisLine: false as const,
 }
 
-interface BarChartRendererProps {
+interface AreaChartRendererProps {
   spec: ChartSpec
 }
 
-export function BarChartRenderer({ spec }: BarChartRendererProps) {
+export function AreaChartRenderer({ spec }: AreaChartRendererProps) {
   const { data, series, x_axis_key, unit, reference_lines } = spec
 
   return (
     <ResponsiveContainer width="100%" height={224}>
-      <BarChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
+      <AreaChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
+        <defs>
+          {series.map((s) => (
+            <linearGradient key={s.key} id={`area-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={s.color} stopOpacity={0.2} />
+              <stop offset="95%" stopColor={s.color} stopOpacity={0.02} />
+            </linearGradient>
+          ))}
+        </defs>
         <CartesianGrid
           strokeDasharray="3 3"
           stroke="hsl(217 33% 19%)"
@@ -83,20 +91,23 @@ export function BarChartRenderer({ spec }: BarChartRendererProps) {
         <Tooltip content={<ChartTooltip unit={unit} />} />
         <Legend
           wrapperStyle={{ fontSize: 11, color: 'hsl(215 20% 62%)' }}
+          iconType="line"
         />
         {series.map((s) => (
-          <Bar
+          <Area
             key={s.key}
+            type="monotone"
             dataKey={s.key}
             name={s.label}
-            fill={s.color}
-            stackId={s.stack_id}
-            radius={[3, 3, 0, 0]}
-            maxBarSize={48}
+            stroke={s.color}
+            strokeWidth={2}
+            fill={`url(#area-${s.key})`}
+            strokeDasharray={s.stroke_dasharray}
+            connectNulls
           />
         ))}
         {reference_lines && <ReferenceLines lines={reference_lines} />}
-      </BarChart>
+      </AreaChart>
     </ResponsiveContainer>
   )
 }

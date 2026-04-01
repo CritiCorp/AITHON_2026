@@ -1,25 +1,29 @@
 import { LineChartRenderer } from './LineChartRenderer'
 import { BarChartRenderer } from './BarChartRenderer'
-import type { ChartConfig } from '@/types/hemas-mind-payload'
+import { AreaChartRenderer } from './AreaChartRenderer'
+import { ComposedChartRenderer } from './ComposedChartRenderer'
+import type { ChartSpec } from '@/types/hemas-mind-payload'
 
 interface ChartFactoryProps {
-  config: ChartConfig
+  spec: ChartSpec
 }
 
-/** Switches on ChartConfig.type and renders the correct chart component. */
-export function ChartFactory({ config }: ChartFactoryProps) {
-  switch (config.type) {
+/** Switches on ChartSpec.type and renders the correct chart component. */
+export function ChartFactory({ spec }: ChartFactoryProps) {
+  switch (spec.type) {
     case 'line':
-      return <LineChartRenderer config={config} />
+      return <LineChartRenderer spec={spec} />
     case 'bar':
-      return <BarChartRenderer config={config} />
-    default: {
-      const exhaustive: never = config.type
-      return (
-        <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-          Unknown chart type: {exhaustive}
-        </div>
-      )
-    }
+      return <BarChartRenderer spec={spec} />
+    case 'area':
+      return <AreaChartRenderer spec={spec} />
+    case 'composed':
+      return <ComposedChartRenderer spec={spec} />
+    case 'pie':
+    case 'scatter':
+      // Fallback to line for unsupported types
+      return <LineChartRenderer spec={spec} />
+    default:
+      return <LineChartRenderer spec={spec} />
   }
 }

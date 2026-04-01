@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import type { Action, ApiResponse } from '@/types/hemas-mind-payload'
+import type { AgentAction, ApiResponse } from '@/types/hemas-mind-payload'
 import { usePayloadStore } from '@/store/payloadStore'
 
 interface ActionState {
@@ -22,7 +22,7 @@ export function useActionHandler() {
   const { current: payload } = usePayloadStore()
 
   const handleAction = useCallback(
-    async (action: Action): Promise<ApiResponse | null> => {
+    async (action: AgentAction): Promise<ApiResponse | null> => {
       setStates((prev) => ({ ...prev, [action.id]: { ...idle, isLoading: true } }))
 
       try {

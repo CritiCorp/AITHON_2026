@@ -4,10 +4,6 @@ import { Play, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { AgentStatusBar } from '@/components/agent/AgentStatusBar'
 import { AgentThoughtStream } from '@/components/agent/AgentThoughtStream'
-import { AlertBanner } from '@/components/dashboard/AlertBanner'
-import { KpiRow } from '@/components/dashboard/KpiRow'
-import { InsightsPanel } from '@/components/dashboard/InsightsPanel'
-import { ActionsPanel } from '@/components/dashboard/ActionsPanel'
 import { AgenticChart } from '@/components/analytics/AgenticChart'
 import { Button } from '@/components/ui/button'
 import { usePayloadStore } from '@/store/payloadStore'
@@ -47,29 +43,15 @@ export default function DashboardPage() {
           </Button>
         </div>
 
-        {/* ── Critical / warning alert banner ── */}
-        {payload?.alert && <AlertBanner alert={payload.alert} />}
-
-        {/* ── KPI tile row ── */}
-        {payload?.kpis && payload.kpis.length > 0 && (
-          <KpiRow metrics={payload.kpis} />
+        {/* ── Main analysis view ── */}
+        {payload && (
+          <AgenticChart payload={payload} isLoading={isStreaming} />
         )}
 
-        {/* ── Chart grid ── */}
-        {payload?.charts && payload.charts.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {payload.charts.map((chart) => (
-              <AgenticChart key={chart.id} config={chart} />
-            ))}
-          </div>
-        )}
-
-        {/* ── Insights · Actions · Thought stream ── */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <InsightsPanel insights={payload?.insights ?? []} />
-          <ActionsPanel actions={payload?.actions ?? []} />
+        {/* ── Thought stream (always visible when active) ── */}
+        {(payload || isStreaming) && (
           <AgentThoughtStream />
-        </div>
+        )}
 
         {/* ── Empty / idle state ── */}
         {!payload && !isStreaming && (

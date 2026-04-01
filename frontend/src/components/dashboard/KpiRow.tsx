@@ -1,15 +1,15 @@
 import { KpiTile } from './KpiTile'
-import type { KpiMetric } from '@/types/hemas-mind-payload'
+import type { KpiTile as KpiTileType } from '@/types/hemas-mind-payload'
 
 interface KpiRowProps {
-  metrics: KpiMetric[]
+  kpis: KpiTileType[]
 }
 
-export function KpiRow({ metrics }: KpiRowProps) {
+export function KpiRow({ kpis }: KpiRowProps) {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-      {metrics.map((metric) => (
-        <KpiTile key={metric.id} metric={metric} />
+      {kpis.map((tile) => (
+        <KpiTile key={tile.id} tile={tile} />
       ))}
     </div>
   )
