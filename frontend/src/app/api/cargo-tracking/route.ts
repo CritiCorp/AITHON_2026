@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
       vehicle_id: body.vehicle_id,
       vehicle_type: body.vehicle_type,
       invoice_id: body.invoice_id,
+      icao_code: body.icao_code,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       status: "in_transit",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { ChevronDown, Package } from "lucide-react";
 import { AddCargoTrackingModal } from "./AddCargoTrackingModal";
@@ -44,16 +44,33 @@ const DEFAULT_POINTS: MapPoint[] = [
   },
 ];
 
+const CARGO_SOURCE_ID = "cargo-vehicles";
+const CARGO_LAYER_ID = "cargo-vehicles";
+const CARGO_PLANE_ICON_LAYER_ID = "cargo-plane-icons";
+const CARGO_ROUTE_SOURCE_ID = "cargo-routes";
+const CARGO_ROUTE_LAYER_ID = "cargo-routes";
+const PLANE_REFRESH_INTERVAL_MS = 15000;
+
+function asFeatureCollection(features: GeoJSON.Feature[]): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features,
+  };
+}
+
 export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: SriLankaInteractiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const cargoListRef = useRef<CargoTracking[]>([]);
+  const cargoInteractionBoundRef = useRef(false);
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCargoModalOpen, setIsCargoModalOpen] = useState(false);
   const [cargoTrackingEnabled, setCargoTrackingEnabled] = useState(true);
+  const [mapLoaded, setMapLoaded] = useState(false);
   const [cargoList, setCargoList] = useState<CargoTracking[]>([]);
   const [selectedCargo, setSelectedCargo] = useState<CargoTracking | null>(null);
   const [selectedCargoRoute, setSelectedCargoRoute] = useState<CargoTracking | null>(null);
-  const [loadingCargo, setLoadingCargo] = useState(false);
 
   const pointFeatureCollection = useMemo<GeoJSON.FeatureCollection>(
     () => ({
@@ -74,139 +91,104 @@ export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: S
     [points],
   );
 
-  // Fetch cargo tracking data
-  const fetchCargoTracking = async () => {
+  useEffect(() => {
+    cargoListRef.current = cargoList;
+  }, [cargoList]);
+
+  const fetchCargoTracking = useCallback(async () => {
     try {
-      setLoadingCargo(true);
-      const response = await fetch("/api/cargo-tracking");
+      const response = await fetch("/api/cargo-tracking", { cache: "no-store" });
       const result = await response.json();
       if (result.success) {
         setCargoList(result.data);
       }
     } catch (error) {
       console.error("Failed to fetch cargo tracking:", error);
-    } finally {
-      setLoadingCargo(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchCargoTracking();
+  }, [fetchCargoTracking]);
+
+  const refreshPlaneLocations = useCallback(async () => {
+    const currentCargo = cargoListRef.current;
+    const planesToRefresh = currentCargo.filter((cargo) => cargo.vehicle_type === "plane" && cargo.icao_code);
+
+    if (planesToRefresh.length === 0) {
+      return;
+    }
+
+    const updates = await Promise.all(
+      planesToRefresh.map(async (plane) => {
+        try {
+          const response = await fetch(`/api/aircraft/${plane.icao_code}`, { cache: "no-store" });
+          const result = await response.json();
+
+          if (!result.success) {
+            return null;
+          }
+
+          return {
+            id: plane.id,
+            lat: Number(result.data.lat),
+            lng: Number(result.data.lon),
+            timestamp: new Date().toISOString(),
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    const validUpdates = updates.filter((update): update is NonNullable<typeof update> => Boolean(update));
+    if (validUpdates.length === 0) {
+      return;
+    }
+
+    const updateById = new Map(validUpdates.map((update) => [update.id, update]));
+
+    setCargoList((prev) =>
+      prev.map((cargo) => {
+        const update = updateById.get(cargo.id);
+        if (!update) {
+          return cargo;
+        }
+
+        const nextRoute = [...(cargo.route ?? [])];
+        nextRoute.push({
+          lat: update.lat,
+          lng: update.lng,
+          timestamp: update.timestamp,
+        });
+
+        return {
+          ...cargo,
+          updated_at: update.timestamp,
+          current_location: {
+            lat: update.lat,
+            lng: update.lng,
+            timestamp: update.timestamp,
+          },
+          route: nextRoute.slice(-120),
+        };
+      }),
+    );
   }, []);
 
-  // Add cargo tracking layer to map
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !cargoTrackingEnabled) return;
-
-    // Remove existing cargo layers if they exist
-    if (map.getLayer("cargo-routes")) {
-      map.removeLayer("cargo-routes");
-    }
-    if (map.getSource("cargo-routes")) {
-      map.removeSource("cargo-routes");
-    }
-    if (map.getLayer("cargo-vehicles")) {
-      map.removeLayer("cargo-vehicles");
-    }
-    if (map.getSource("cargo-vehicles")) {
-      map.removeSource("cargo-vehicles");
+    if (!cargoTrackingEnabled) {
+      return;
     }
 
-    // Create feature collection for routes (only if a route is selected)
-    const routeFeatures: GeoJSON.Feature[] = [];
-    if (selectedCargoRoute?.route) {
-      routeFeatures.push({
-        type: "Feature",
-        properties: { cargoId: selectedCargoRoute.id },
-        geometry: {
-          type: "LineString",
-          coordinates: selectedCargoRoute.route.map((point) => [point.lng, point.lat]),
-        },
-      });
-    }
+    const intervalId = window.setInterval(() => {
+      void refreshPlaneLocations();
+    }, PLANE_REFRESH_INTERVAL_MS);
 
-    // Create feature collection for vehicles
-    const vehicleFeatures: GeoJSON.Feature[] = cargoList.map((cargo) => ({
-      type: "Feature",
-      properties: {
-        id: cargo.id,
-        vehicle_id: cargo.vehicle_id,
-        vehicle_type: cargo.vehicle_type,
-        status: cargo.status,
-      },
-      geometry: {
-        type: "Point",
-        coordinates: [cargo.current_location.lng, cargo.current_location.lat],
-      },
-    }));
-
-    // Add route source and layer
-    if (routeFeatures.length > 0) {
-      map.addSource("cargo-routes", {
-        type: "geojson",
-        data: {
-          type: "FeatureCollection",
-          features: routeFeatures,
-        },
-      });
-
-      map.addLayer({
-        id: "cargo-routes",
-        type: "line",
-        source: "cargo-routes",
-        paint: {
-          "line-color": "#06b6d4",
-          "line-width": 2,
-          "line-opacity": 0.7,
-          "line-dasharray": [5, 5],
-        },
-      });
-    }
-
-    // Add vehicle source and layer
-    map.addSource("cargo-vehicles", {
-      type: "geojson",
-      data: {
-        type: "FeatureCollection",
-        features: vehicleFeatures,
-      },
-    });
-
-    map.addLayer({
-      id: "cargo-vehicles",
-      type: "circle",
-      source: "cargo-vehicles",
-      paint: {
-        "circle-color": ["case", ["==", ["get", "vehicle_type"], "plane"], "#f59e0b", "#10b981"],
-        "circle-radius": 10,
-        "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 2,
-        "circle-opacity": 0.9,
-      },
-    });
-
-    // Add hover effect
-    map.on("mouseenter", "cargo-vehicles", () => {
-      map.getCanvas().style.cursor = "pointer";
-    });
-
-    map.on("mouseleave", "cargo-vehicles", () => {
-      map.getCanvas().style.cursor = "";
-    });
-
-    // Handle click on vehicles
-    map.on("click", "cargo-vehicles", (event) => {
-      const feature = event.features?.[0];
-      if (!feature) return;
-      const cargoId = String(feature.properties?.id);
-      const cargo = cargoList.find((c) => c.id === cargoId);
-      if (cargo) {
-        setSelectedCargo(cargo);
-        setSelectedCargoRoute(cargo);
-      }
-    });
-  }, [cargoTrackingEnabled, cargoList, selectedCargoRoute?.id]);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [cargoTrackingEnabled, refreshPlaneLocations]);
 
   // Initial map setup
   useEffect(() => {
@@ -259,6 +241,7 @@ export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: S
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
 
     map.on("load", () => {
+      setMapLoaded(true);
       map.resize();
 
       const setBasemap = (mode: "flat" | "terrestrial") => {
@@ -348,6 +331,7 @@ export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: S
     mapRef.current = map;
 
     return () => {
+      setMapLoaded(false);
       map.remove();
       mapRef.current = null;
     };
@@ -362,6 +346,159 @@ export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: S
 
     source.setData(pointFeatureCollection);
   }, [pointFeatureCollection]);
+
+  useEffect(() => {
+    if (!selectedCargo) return;
+    const updated = cargoList.find((cargo) => cargo.id === selectedCargo.id);
+    if (updated) {
+      setSelectedCargo(updated);
+    }
+  }, [cargoList, selectedCargo]);
+
+  useEffect(() => {
+    if (!selectedCargoRoute) return;
+    const updated = cargoList.find((cargo) => cargo.id === selectedCargoRoute.id);
+    if (updated) {
+      setSelectedCargoRoute(updated);
+    }
+  }, [cargoList, selectedCargoRoute]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+
+    const routeFeatures: GeoJSON.Feature[] = [];
+    if (selectedCargoRoute?.route && selectedCargoRoute.route.length > 1) {
+      routeFeatures.push({
+        type: "Feature",
+        properties: {
+          cargoId: selectedCargoRoute.id,
+        },
+        geometry: {
+          type: "LineString",
+          coordinates: selectedCargoRoute.route.map((point) => [point.lng, point.lat]),
+        },
+      });
+    }
+
+    const vehicleFeatures: GeoJSON.Feature[] = cargoList.map((cargo) => ({
+      type: "Feature",
+      properties: {
+        id: cargo.id,
+        vehicle_id: cargo.vehicle_id,
+        vehicle_type: cargo.vehicle_type,
+        status: cargo.status,
+      },
+      geometry: {
+        type: "Point",
+        coordinates: [cargo.current_location.lng, cargo.current_location.lat],
+      },
+    }));
+
+    const vehicleSource = map.getSource(CARGO_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+    if (vehicleSource) {
+      vehicleSource.setData(asFeatureCollection(vehicleFeatures));
+    } else {
+      map.addSource(CARGO_SOURCE_ID, {
+        type: "geojson",
+        data: asFeatureCollection(vehicleFeatures),
+      });
+    }
+
+    if (!map.getLayer(CARGO_LAYER_ID)) {
+      map.addLayer({
+        id: CARGO_LAYER_ID,
+        type: "circle",
+        source: CARGO_SOURCE_ID,
+        paint: {
+          "circle-color": ["case", ["==", ["get", "vehicle_type"], "plane"], "#f59e0b", "#10b981"],
+          "circle-radius": ["case", ["==", ["get", "vehicle_type"], "plane"], 11, 9],
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 2,
+          "circle-opacity": 0.92,
+        },
+      });
+    }
+
+    if (!map.getLayer(CARGO_PLANE_ICON_LAYER_ID)) {
+      map.addLayer({
+        id: CARGO_PLANE_ICON_LAYER_ID,
+        type: "symbol",
+        source: CARGO_SOURCE_ID,
+        filter: ["==", ["get", "vehicle_type"], "plane"],
+        layout: {
+          "text-field": "✈",
+          "text-size": 16,
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        },
+        paint: {
+          "text-color": "#111827",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1,
+        },
+      });
+    }
+
+    const routeSource = map.getSource(CARGO_ROUTE_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+    if (routeSource) {
+      routeSource.setData(asFeatureCollection(routeFeatures));
+    } else {
+      map.addSource(CARGO_ROUTE_SOURCE_ID, {
+        type: "geojson",
+        data: asFeatureCollection(routeFeatures),
+      });
+    }
+
+    if (!map.getLayer(CARGO_ROUTE_LAYER_ID)) {
+      map.addLayer({
+        id: CARGO_ROUTE_LAYER_ID,
+        type: "line",
+        source: CARGO_ROUTE_SOURCE_ID,
+        paint: {
+          "line-color": "#06b6d4",
+          "line-width": 2,
+          "line-opacity": 0.75,
+          "line-dasharray": [5, 5],
+        },
+      });
+    }
+
+    const visibility = cargoTrackingEnabled ? "visible" : "none";
+    map.setLayoutProperty(CARGO_LAYER_ID, "visibility", visibility);
+    map.setLayoutProperty(CARGO_PLANE_ICON_LAYER_ID, "visibility", visibility);
+    map.setLayoutProperty(CARGO_ROUTE_LAYER_ID, "visibility", visibility);
+
+    if (!cargoInteractionBoundRef.current) {
+      const setPointer = () => {
+        map.getCanvas().style.cursor = "pointer";
+      };
+      const resetPointer = () => {
+        map.getCanvas().style.cursor = "";
+      };
+
+      const onCargoClick = (event: maplibregl.MapLayerMouseEvent) => {
+        const feature = event.features?.[0];
+        if (!feature) return;
+
+        const cargoId = String(feature.properties?.id ?? "");
+        const cargo = cargoListRef.current.find((item) => item.id === cargoId);
+        if (!cargo) return;
+
+        setSelectedCargo(cargo);
+        setSelectedCargoRoute(cargo);
+      };
+
+      map.on("mouseenter", CARGO_LAYER_ID, setPointer);
+      map.on("mouseleave", CARGO_LAYER_ID, resetPointer);
+      map.on("mouseenter", CARGO_PLANE_ICON_LAYER_ID, setPointer);
+      map.on("mouseleave", CARGO_PLANE_ICON_LAYER_ID, resetPointer);
+      map.on("click", CARGO_LAYER_ID, onCargoClick);
+      map.on("click", CARGO_PLANE_ICON_LAYER_ID, onCargoClick);
+
+      cargoInteractionBoundRef.current = true;
+    }
+  }, [cargoList, cargoTrackingEnabled, selectedCargoRoute, mapLoaded]);
 
   const handleCargoTrackingSubmit = () => {
     setIsCargoModalOpen(false);

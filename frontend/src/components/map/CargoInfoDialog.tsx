@@ -47,6 +47,20 @@ export function CargoInfoDialog({ cargo, onClose }: CargoInfoDialogProps) {
             </span>
           </div>
 
+          {/* ICAO Code (for planes) */}
+          {cargo.icao_code && (
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-white">✈️ Aircraft Information</h3>
+              <div className="bg-slate-800 p-3 rounded text-sm text-slate-300 space-y-2">
+                <p>
+                  <span className="text-slate-400">ICAO Code:</span>{" "}
+                  <span className="font-mono font-bold text-sky-300">{cargo.icao_code}</span>
+                </p>
+                <p className="text-xs text-slate-500">Real-time data from adsb.fi</p>
+              </div>
+            </div>
+          )}
+
           {/* Current Location */}
           <div className="space-y-1">
             <h3 className="text-sm font-semibold text-white">Current Location</h3>

@@ -22,6 +22,10 @@ export function AddCargoTrackingModal({ isOpen, onClose, onSubmit }: AddCargoTra
   const [selectedInvoice, setSelectedInvoice] = useState<string>("");
   const [vehicleId, setVehicleId] = useState<string>("");
   const [vehicleType, setVehicleType] = useState<VehicleType>("plane");
+  const [icaoCode, setIcaoCode] = useState<string>("");
+  const [aircraftData, setAircraftData] = useState<any>(null);
+  const [validatingIcao, setValidatingIcao] = useState(false);
+  const [icaoError, setIcaoError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
 
@@ -47,6 +51,39 @@ export function AddCargoTrackingModal({ isOpen, onClose, onSubmit }: AddCargoTra
     }
   };
 
+  // Validate ICAO code and fetch aircraft data
+  const validateAndFetchAircraft = async (code: string) => {
+    setIcaoCode(code.toUpperCase());
+    setAircraftData(null);
+    setIcaoError("");
+
+    if (!code) return;
+
+    // Validate format (6 hex characters)
+    if (!/^[0-9A-F]{6}$/i.test(code)) {
+      setIcaoError("ICAO code must be 6 hexadecimal characters (e.g., 461E1A)");
+      return;
+    }
+
+    try {
+      setValidatingIcao(true);
+      const response = await fetch(`/api/aircraft/${code}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setAircraftData(result.data);
+        setIcaoError("");
+      } else {
+        setIcaoError(result.error || "Failed to fetch aircraft data");
+      }
+    } catch (err) {
+      console.error("Error validating ICAO code:", err);
+      setIcaoError("Error validating ICAO code");
+    } finally {
+      setValidatingIcao(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -61,11 +98,24 @@ export function AddCargoTrackingModal({ isOpen, onClose, onSubmit }: AddCargoTra
       return;
     }
 
+    if (vehicleType === "plane") {
+      if (!icaoCode.trim()) {
+        setError("Please enter ICAO code for the plane");
+        return;
+      }
+      if (!aircraftData) {
+        setError("Please validate the ICAO code to get real aircraft location");
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
 
-      // Get current location (using Colombo hub as default for demo)
-      const defaultLocation = { lat: 6.9271, lng: 79.8612 };
+      // Use aircraft data if available (for planes), otherwise use default
+      const currentLocation = aircraftData
+        ? { lat: aircraftData.lat, lng: aircraftData.lon }
+        : { lat: 6.9271, lng: 79.8612 };
 
       const response = await fetch("/api/cargo-tracking", {
         method: "POST",
@@ -74,7 +124,8 @@ export function AddCargoTrackingModal({ isOpen, onClose, onSubmit }: AddCargoTra
           vehicle_id: vehicleId,
           vehicle_type: vehicleType,
           invoice_id: selectedInvoice,
-          current_location: defaultLocation,
+          icao_code: vehicleType === "plane" ? icaoCode : undefined,
+          current_location: currentLocation,
         }),
       });
 
@@ -85,12 +136,15 @@ export function AddCargoTrackingModal({ isOpen, onClose, onSubmit }: AddCargoTra
           vehicle_id: vehicleId,
           vehicle_type: vehicleType,
           invoice_id: selectedInvoice,
-          current_location: defaultLocation,
+          current_location: currentLocation,
         });
         // Reset form
         setVehicleId("");
         setSelectedInvoice("");
         setVehicleType("plane");
+        setIcaoCode("");
+        setAircraftData(null);
+        setIcaoError("");
         onClose();
       } else {
         setError(result.error || "Failed to add cargo tracking");
@@ -170,6 +224,77 @@ export function AddCargoTrackingModal({ isOpen, onClose, onSubmit }: AddCargoTra
               </label>
             </div>
           </div>
+
+          {/* ICAO Code (for planes) */}
+          {vehicleType === "plane" && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">ICAO Code (6-digit hex)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={icaoCode}
+                  onChange={(e) => validateAndFetchAircraft(e.target.value)}
+                  placeholder="e.g., 461E1A"
+                  maxLength={6}
+                  className="flex-1 px-3 py-2 bg-slate-800 text-white border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 uppercase"
+                />
+                {validatingIcao && (
+                  <div className="flex items-center text-slate-400 text-sm">
+                    <span>Loading...</span>
+                  </div>
+                )}
+                {aircraftData && <div className="flex items-center text-green-400 text-sm font-medium">✓ Found</div>}
+              </div>
+              {icaoError && <div className="text-xs text-red-400">{icaoError}</div>}
+
+              {/* Aircraft Details */}
+              {aircraftData && (
+                <div className="mt-3 p-3 bg-slate-800 rounded-md border border-green-700/30">
+                  <h4 className="text-sm font-semibold text-green-400 mb-2">✈️ Aircraft Found</h4>
+                  <div className="space-y-1 text-xs text-slate-300">
+                    {aircraftData.desc && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Aircraft:</span>
+                        <span className="font-medium">{aircraftData.desc}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Callsign:</span>
+                      <span className="font-medium">{aircraftData.callsign || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Registration:</span>
+                      <span className="font-medium">{aircraftData.reg || "N/A"}</span>
+                    </div>
+                    {aircraftData.squawk && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Squawk:</span>
+                        <span className="font-medium font-mono">{aircraftData.squawk}</span>
+                      </div>
+                    )}
+                    <div className="border-t border-slate-700 my-1 pt-1">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Current Location:</span>
+                        <span className="font-medium text-sky-300">
+                          {aircraftData.lat?.toFixed(4)}°, {aircraftData.lon?.toFixed(4)}°
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Altitude:</span>
+                      <span className="font-medium">
+                        {aircraftData.alt_baro ? `${aircraftData.alt_baro} ft` : "N/A"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Ground Speed:</span>
+                      <span className="font-medium">{aircraftData.gs ? `${aircraftData.gs} kts` : "N/A"}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Invoice Details */}
           {selectedInvoice && (
