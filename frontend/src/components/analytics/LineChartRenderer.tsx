@@ -86,7 +86,7 @@ export function LineChartRenderer({ spec }: LineChartRendererProps) {
 
   if (show_confidence_band && confidence_upper_key && confidence_lower_key) {
     return (
-      <ResponsiveContainer width="100%" height={224}>
+      <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -143,7 +143,7 @@ export function LineChartRenderer({ spec }: LineChartRendererProps) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={224}>
+    <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
         <CartesianGrid
           strokeDasharray="3 3"

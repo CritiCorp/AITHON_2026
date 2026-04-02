@@ -60,7 +60,7 @@ export async function generatePurchaseOrder(
   })
 }
 
-// ── Server-side proxy helper (used only inside Next.js API routes) ──
+// ── Server-side proxy helpers (used only inside Next.js API routes) ──
 
 export async function proxyToBackend<T>(
   path: string,
@@ -70,6 +70,30 @@ export async function proxyToBackend<T>(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new ApiError(res.status, text)
+  }
+
+  return res.json() as Promise<T>
+}
+
+export async function proxyToBackendGet<T>(
+  path: string,
+  params?: Record<string, string>
+): Promise<T> {
+  const url = new URL(`${BACKEND_URL}${path}`)
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') url.searchParams.set(k, v)
+    })
+  }
+
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
   })
 
   if (!res.ok) {

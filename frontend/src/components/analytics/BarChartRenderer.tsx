@@ -68,7 +68,7 @@ export function BarChartRenderer({ spec }: BarChartRendererProps) {
   const { data, series, x_axis_key, unit, reference_lines } = spec
 
   return (
-    <ResponsiveContainer width="100%" height={224}>
+    <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
         <CartesianGrid
           strokeDasharray="3 3"
