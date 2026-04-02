@@ -90,7 +90,7 @@ export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: S
       },
       center: [80.7718, 7.8731],
       zoom: 7,
-      minZoom: 6,
+      minZoom: 1,
       maxZoom: 14,
     });
 
