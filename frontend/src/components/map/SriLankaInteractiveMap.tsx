@@ -71,26 +71,42 @@ export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: S
       style: {
         version: 8,
         sources: {
-          osm: {
+          flatBase: {
             type: "raster",
             tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
             tileSize: 256,
             attribution: "&copy; OpenStreetMap contributors",
           },
+          terrestrialBase: {
+            type: "raster",
+            tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"],
+            tileSize: 256,
+            attribution: "Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA",
+          },
         },
         layers: [
           {
-            id: "osm-tiles",
+            id: "flat-base-tiles",
             type: "raster",
-            source: "osm",
+            source: "flatBase",
             minzoom: 0,
             maxzoom: 19,
+          },
+          {
+            id: "terrestrial-base-tiles",
+            type: "raster",
+            source: "terrestrialBase",
+            minzoom: 0,
+            maxzoom: 19,
+            layout: {
+              visibility: "none",
+            },
           },
         ],
       },
       center: [80.7718, 7.8731],
       zoom: 7,
-      minZoom: 1,
+      minZoom: 0,
       maxZoom: 14,
     });
 
@@ -98,6 +114,50 @@ export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: S
 
     map.on("load", () => {
       map.resize();
+
+      const setBasemap = (mode: "flat" | "terrestrial") => {
+        map.setLayoutProperty("flat-base-tiles", "visibility", mode === "flat" ? "visible" : "none");
+        map.setLayoutProperty("terrestrial-base-tiles", "visibility", mode === "terrestrial" ? "visible" : "none");
+      };
+
+      class BasemapControl implements maplibregl.IControl {
+        private container?: HTMLDivElement;
+
+        onAdd() {
+          const container = document.createElement("div");
+          container.className = "maplibregl-ctrl maplibregl-ctrl-group";
+          container.style.padding = "6px";
+          container.style.background = "rgba(15, 23, 42, 0.88)";
+
+          const select = document.createElement("select");
+          select.setAttribute("aria-label", "Basemap style");
+          select.style.background = "transparent";
+          select.style.color = "#e2e8f0";
+          select.style.border = "0";
+          select.style.outline = "none";
+          select.style.fontSize = "12px";
+          select.style.padding = "2px 4px";
+          select.innerHTML = '<option value="flat">Flat (OSM)</option><option value="terrestrial">Terrestrial</option>';
+
+          select.addEventListener("change", (event) => {
+            const value = (event.target as HTMLSelectElement).value as "flat" | "terrestrial";
+            setBasemap(value);
+          });
+
+          container.appendChild(select);
+          this.container = container;
+          return container;
+        }
+
+        onRemove() {
+          if (this.container?.parentNode) {
+            this.container.parentNode.removeChild(this.container);
+          }
+          this.container = undefined;
+        }
+      }
+
+      map.addControl(new BasemapControl(), "top-right");
 
       map.addSource("supply-points", {
         type: "geojson",
