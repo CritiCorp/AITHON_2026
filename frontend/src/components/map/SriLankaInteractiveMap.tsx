@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
+import { ChevronDown, Package } from "lucide-react";
+import { AddCargoTrackingModal } from "./AddCargoTrackingModal";
+import { CargoInfoDialog } from "./CargoInfoDialog";
+import { CargoTracking } from "@/types/cargo-tracking";
 
 export type MapPoint = {
   id: string;
@@ -43,6 +47,13 @@ const DEFAULT_POINTS: MapPoint[] = [
 export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: SriLankaInteractiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isCargoModalOpen, setIsCargoModalOpen] = useState(false);
+  const [cargoTrackingEnabled, setCargoTrackingEnabled] = useState(true);
+  const [cargoList, setCargoList] = useState<CargoTracking[]>([]);
+  const [selectedCargo, setSelectedCargo] = useState<CargoTracking | null>(null);
+  const [selectedCargoRoute, setSelectedCargoRoute] = useState<CargoTracking | null>(null);
+  const [loadingCargo, setLoadingCargo] = useState(false);
 
   const pointFeatureCollection = useMemo<GeoJSON.FeatureCollection>(
     () => ({
@@ -63,6 +74,141 @@ export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: S
     [points],
   );
 
+  // Fetch cargo tracking data
+  const fetchCargoTracking = async () => {
+    try {
+      setLoadingCargo(true);
+      const response = await fetch("/api/cargo-tracking");
+      const result = await response.json();
+      if (result.success) {
+        setCargoList(result.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch cargo tracking:", error);
+    } finally {
+      setLoadingCargo(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCargoTracking();
+  }, []);
+
+  // Add cargo tracking layer to map
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !cargoTrackingEnabled) return;
+
+    // Remove existing cargo layers if they exist
+    if (map.getLayer("cargo-routes")) {
+      map.removeLayer("cargo-routes");
+    }
+    if (map.getSource("cargo-routes")) {
+      map.removeSource("cargo-routes");
+    }
+    if (map.getLayer("cargo-vehicles")) {
+      map.removeLayer("cargo-vehicles");
+    }
+    if (map.getSource("cargo-vehicles")) {
+      map.removeSource("cargo-vehicles");
+    }
+
+    // Create feature collection for routes (only if a route is selected)
+    const routeFeatures: GeoJSON.Feature[] = [];
+    if (selectedCargoRoute?.route) {
+      routeFeatures.push({
+        type: "Feature",
+        properties: { cargoId: selectedCargoRoute.id },
+        geometry: {
+          type: "LineString",
+          coordinates: selectedCargoRoute.route.map((point) => [point.lng, point.lat]),
+        },
+      });
+    }
+
+    // Create feature collection for vehicles
+    const vehicleFeatures: GeoJSON.Feature[] = cargoList.map((cargo) => ({
+      type: "Feature",
+      properties: {
+        id: cargo.id,
+        vehicle_id: cargo.vehicle_id,
+        vehicle_type: cargo.vehicle_type,
+        status: cargo.status,
+      },
+      geometry: {
+        type: "Point",
+        coordinates: [cargo.current_location.lng, cargo.current_location.lat],
+      },
+    }));
+
+    // Add route source and layer
+    if (routeFeatures.length > 0) {
+      map.addSource("cargo-routes", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: routeFeatures,
+        },
+      });
+
+      map.addLayer({
+        id: "cargo-routes",
+        type: "line",
+        source: "cargo-routes",
+        paint: {
+          "line-color": "#06b6d4",
+          "line-width": 2,
+          "line-opacity": 0.7,
+          "line-dasharray": [5, 5],
+        },
+      });
+    }
+
+    // Add vehicle source and layer
+    map.addSource("cargo-vehicles", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: vehicleFeatures,
+      },
+    });
+
+    map.addLayer({
+      id: "cargo-vehicles",
+      type: "circle",
+      source: "cargo-vehicles",
+      paint: {
+        "circle-color": ["case", ["==", ["get", "vehicle_type"], "plane"], "#f59e0b", "#10b981"],
+        "circle-radius": 10,
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 2,
+        "circle-opacity": 0.9,
+      },
+    });
+
+    // Add hover effect
+    map.on("mouseenter", "cargo-vehicles", () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+
+    map.on("mouseleave", "cargo-vehicles", () => {
+      map.getCanvas().style.cursor = "";
+    });
+
+    // Handle click on vehicles
+    map.on("click", "cargo-vehicles", (event) => {
+      const feature = event.features?.[0];
+      if (!feature) return;
+      const cargoId = String(feature.properties?.id);
+      const cargo = cargoList.find((c) => c.id === cargoId);
+      if (cargo) {
+        setSelectedCargo(cargo);
+        setSelectedCargoRoute(cargo);
+      }
+    });
+  }, [cargoTrackingEnabled, cargoList, selectedCargoRoute?.id]);
+
+  // Initial map setup
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -217,9 +363,92 @@ export function SriLankaInteractiveMap({ points = DEFAULT_POINTS, className }: S
     source.setData(pointFeatureCollection);
   }, [pointFeatureCollection]);
 
+  const handleCargoTrackingSubmit = () => {
+    setIsCargoModalOpen(false);
+    fetchCargoTracking();
+  };
+
   return (
     <div className={className}>
+      {/* Map Container */}
       <div ref={mapContainerRef} className="h-full min-h-[320px] w-full" />
+
+      {/* Top-Left Menu */}
+      <div className="absolute top-4 left-4 z-40">
+        <button
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white hover:bg-slate-800 transition-colors"
+        >
+          <Package size={18} />
+          <span>Overlays</span>
+          <ChevronDown size={16} className={`transition-transform ${isMenuOpen ? "rotate-180" : ""}`} />
+        </button>
+
+        {/* Dropdown Menu */}
+        {isMenuOpen && (
+          <div className="absolute top-12 left-0 mt-2 w-48 bg-slate-900 border border-slate-600 rounded-lg shadow-lg overflow-hidden z-50">
+            <button
+              onClick={() => {
+                setIsCargoModalOpen(true);
+                setIsMenuOpen(false);
+              }}
+              className="w-full text-left px-4 py-3 hover:bg-slate-800 transition-colors text-white flex items-center gap-2"
+            >
+              <Package size={16} />
+              <span>Add Cargo Tracking</span>
+            </button>
+
+            <div className="border-t border-slate-700">
+              <label className="flex items-center gap-3 px-4 py-3 hover:bg-slate-800 transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cargoTrackingEnabled}
+                  onChange={(e) => setCargoTrackingEnabled(e.target.checked)}
+                  className="w-4 h-4 rounded"
+                />
+                <span className="text-white text-sm">Show Cargo Tracking</span>
+              </label>
+            </div>
+
+            {cargoTrackingEnabled && cargoList.length > 0 && (
+              <div className="border-t border-slate-700 max-h-40 overflow-y-auto">
+                <div className="px-4 py-2 bg-slate-800 text-xs text-slate-400 font-semibold">
+                  Active Shipments ({cargoList.length})
+                </div>
+                {cargoList.map((cargo) => (
+                  <button
+                    key={cargo.id}
+                    onClick={() => {
+                      setSelectedCargoRoute(cargo);
+                      setSelectedCargo(cargo);
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-700 transition-colors text-xs text-slate-300 border-b border-slate-700 last:border-b-0"
+                  >
+                    <div className="font-medium text-white">{cargo.vehicle_id}</div>
+                    <div className="text-slate-500">{cargo.vehicle_type}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      <AddCargoTrackingModal
+        isOpen={isCargoModalOpen}
+        onClose={() => setIsCargoModalOpen(false)}
+        onSubmit={handleCargoTrackingSubmit}
+      />
+
+      <CargoInfoDialog
+        cargo={selectedCargo}
+        onClose={() => {
+          setSelectedCargo(null);
+          setSelectedCargoRoute(null);
+        }}
+      />
     </div>
   );
 }
