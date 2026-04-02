@@ -14,6 +14,7 @@ import type {
   PharmacyMapResponse,
   DiseaseDemandCorrelationResponse,
   SeasonalPatternResponse,
+  ExpiryTimelineResponse,
 } from '@/types/analytics'
 
 interface FetchState<T> {
@@ -168,5 +169,15 @@ export function useSeasonalPattern(province?: string) {
   return useFetch<SeasonalPatternResponse>(
     '/api/analytics/charts/seasonal-pattern',
     { ...(province ? { province } : {}) }
+  )
+}
+
+export function useExpiryTimeline(province?: string, daysAhead?: number) {
+  return useFetch<ExpiryTimelineResponse>(
+    '/api/analytics/charts/expiry-timeline',
+    {
+      ...(province ? { province } : {}),
+      ...(daysAhead !== undefined ? { days_ahead: String(daysAhead) } : {}),
+    }
   )
 }

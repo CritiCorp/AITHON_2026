@@ -189,3 +189,19 @@ export interface SeasonalPatternResponse {
   seasons: SeasonItem[]
   province_filter: string | null
 }
+
+export interface ExpiryTimelineItem {
+  drug_name: string
+  atc_category: string
+  expiry_bucket: 'expired' | '0-7 days' | '7-30 days' | '30-90 days' | '90+ days'
+  nearest_expiry: string
+  total_units: number
+  pharmacy_count: number
+}
+
+export interface ExpiryTimelineResponse {
+  items: ExpiryTimelineItem[]
+  province_filter: string | null
+  days_ahead: number
+  as_of_date: string
+}

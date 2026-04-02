@@ -4,6 +4,7 @@ import { useState } from 'react'
 import {
   BarChart,
   Bar,
+  Cell,
   LineChart,
   Line,
   XAxis,
@@ -15,7 +16,6 @@ import {
 } from 'recharts'
 import { RefreshCw, AlertCircle, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { PieChartRenderer } from '@/components/analytics/PieChartRenderer'
 import { ScatterChartRenderer } from '@/components/analytics/ScatterChartRenderer'
 import { HeatmapRenderer } from '@/components/analytics/HeatmapRenderer'
 import { GaugeCard } from '@/components/analytics/GaugeCard'
@@ -33,7 +33,7 @@ import {
   useTopDrugs,
   useProvinceDemand,
   useDrugTypeBreakdown,
-  useRiskDistribution,
+  useExpiryTimeline,
   useStockStatus,
   useRiskHeatmap,
   usePharmacyMap,
@@ -60,10 +60,21 @@ const PERIOD_OPTIONS = [
 
 const RISK_COLORS: Record<string, string> = {
   critical: '#ef4444',
-  high: '#f97316',
-  medium: '#f59e0b',
-  low: '#22c55e',
+  high:     '#f97316',
+  medium:   '#f59e0b',
+  low:      '#10b981',
+  minimal:  '#6b7280',
 }
+
+const EXPIRY_COLORS: Record<string, string> = {
+  expired: '#ef4444',
+  '0-7 days': '#f97316',
+  '7-30 days': '#f59e0b',
+  '30-90 days': '#3b82f6',
+  '90+ days': '#22c55e',
+}
+
+const EXPIRY_BUCKET_ORDER = ['expired', '0-7 days', '7-30 days', '30-90 days', '90+ days']
 
 const SEASON_LABELS: Record<string, string> = {
   NE_MONSOON: 'NE Monsoon (Dec–Feb)',
@@ -191,7 +202,7 @@ export default function AnalyticsPage() {
   const topDrugs = useTopDrugs(10, days, province)
   const provinceDemand = useProvinceDemand(days)
   const drugTypeBreakdown = useDrugTypeBreakdown(days, province)
-  const riskDist = useRiskDistribution(province)
+  const expiryTimeline = useExpiryTimeline(province)
   const stockStatus = useStockStatus(province)
   const riskHeatmap = useRiskHeatmap(province)
   const pharmacyMap = usePharmacyMap(province)
@@ -344,32 +355,57 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          {/* Risk Distribution (40%) */}
+          {/* Expiry Timeline (40%) */}
           <Card className="lg:col-span-2">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Risk Distribution</CardTitle>
+              <CardTitle className="text-sm font-semibold">Drug Expiry Timeline</CardTitle>
               <CardDescription className="text-xs">
-                SKUs by risk level
-                {riskDist.data ? ` — ${riskDist.data.total} total` : ''}
+                Units at risk by expiry window
+                {expiryTimeline.data ? ` — as of ${expiryTimeline.data.as_of_date}` : ''}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[280px]">
-                {riskDist.loading ? (
-                  <SectionSkeleton rows={4} />
-                ) : riskDist.error ? (
-                  <SectionError message={riskDist.error} onRetry={riskDist.refetch} />
-                ) : riskDist.data ? (
-                  <PieChartRenderer
-                    data={riskDist.data.distribution.map((d) => ({
-                      name: d.risk_level.charAt(0).toUpperCase() + d.risk_level.slice(1),
-                      value: d.count,
-                      pct: d.pct,
-                    }))}
-                    colors={riskDist.data.distribution.map((d) => RISK_COLORS[d.risk_level])}
-                    unit="SKUs"
-                  />
-                ) : null}
+                {expiryTimeline.loading ? (
+                  <SectionSkeleton rows={5} />
+                ) : expiryTimeline.error ? (
+                  <SectionError message={expiryTimeline.error} onRetry={expiryTimeline.refetch} />
+                ) : expiryTimeline.data ? (() => {
+                  const bucketTotals = EXPIRY_BUCKET_ORDER.map((bucket) => ({
+                    bucket,
+                    total_units: expiryTimeline.data!.items
+                      .filter((i) => i.expiry_bucket === bucket)
+                      .reduce((sum, i) => sum + i.total_units, 0),
+                    drug_count: expiryTimeline.data!.items.filter((i) => i.expiry_bucket === bucket).length,
+                  }))
+                  return (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={bucketTotals} margin={{ top: 4, right: 8, left: 0, bottom: 40 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 20% 88%)" vertical={false} />
+                        <XAxis
+                          dataKey="bucket"
+                          {...axisStyle}
+                          angle={-30}
+                          textAnchor="end"
+                          interval={0}
+                        />
+                        <YAxis {...axisStyle} width={48} />
+                        <Tooltip
+                          contentStyle={{ fontSize: 12 }}
+                          formatter={(value: number, _: string, entry: { payload: { drug_count: number } }) => [
+                            `${value.toLocaleString()} units (${entry.payload.drug_count} drugs)`,
+                            'Total Units',
+                          ]}
+                        />
+                        <Bar dataKey="total_units" radius={[4, 4, 0, 0]}>
+                          {bucketTotals.map((entry) => (
+                            <Cell key={entry.bucket} fill={EXPIRY_COLORS[entry.bucket]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )
+                })() : null}
               </div>
             </CardContent>
           </Card>
