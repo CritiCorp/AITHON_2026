@@ -124,13 +124,14 @@ export interface AgentSummary {
 
 // ── Root payload (what Communicator Agent emits) ──────────────
 export interface HemasMindPayload {
-  version: '1.0' | '1.1'
+  version: '1.0' | '1.1' | '1.2'
   metadata: PayloadMetadata
   layout: PayloadLayout
   /** Null when no active alert */
   alert: AlertBanner | null
   kpis: KpiTile[]
-  chart: ChartSpec
+  /** v1.2+: array of 2–4 charts chosen by the agent for this scenario */
+  charts: ChartSpec[]
   insights: string[]
   actions: AgentAction[]
   agentSummary: AgentSummary

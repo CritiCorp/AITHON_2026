@@ -24,16 +24,18 @@ interface AgenticChartProps {
  * Renders the full HemasMindPayload: alert → card header → KPIs → chart → insights → actions.
  */
 export function AgenticChart({ payload, isLoading }: AgenticChartProps) {
-  const { layout, metadata, alert, kpis, chart, insights, actions } = payload
+  const { layout, metadata, alert, kpis, charts, insights, actions } = payload
 
-  if (!layout || !metadata || !chart) return null
+  if (!layout || !metadata) return null
+
+  const chartList = charts ?? []
 
   return (
     <div className="space-y-4">
       {/* Alert banner — only shown when present */}
       {alert && <AlertBanner alert={alert} />}
 
-      {/* Main card: header + KPIs + chart */}
+      {/* Main card: header + KPIs + primary chart */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -68,12 +70,35 @@ export function AgenticChart({ payload, isLoading }: AgenticChartProps) {
           {/* KPI tiles */}
           {kpis?.length > 0 && <KpiRow kpis={kpis} />}
 
-          {/* Chart */}
-          <div className="h-[400px]">
-            <ChartFactory spec={chart} />
-          </div>
+          {/* Primary chart (first in array — always demand-forecast) */}
+          {chartList[0] && (
+            <div className="h-[400px]">
+              <ChartFactory spec={chartList[0]} />
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Secondary charts — rendered in a responsive grid */}
+      {chartList.length > 1 && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {chartList.slice(1).map((spec) => (
+            <Card key={spec.id}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">{spec.title}</CardTitle>
+                {spec.subtitle && (
+                  <CardDescription className="text-xs">{spec.subtitle}</CardDescription>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="h-[280px]">
+                  <ChartFactory spec={spec} />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Insights & Actions */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

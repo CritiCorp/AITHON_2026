@@ -75,9 +75,11 @@ export default function ForecastingPage() {
               <CardContent className="space-y-4">
                 {payload.kpis?.length > 0 && <KpiRow kpis={payload.kpis} />}
 
-                <div className="h-[500px]">
-                  <ChartFactory spec={payload.chart} />
-                </div>
+                {(payload.charts ?? []).map((spec) => (
+                  <div key={spec.id} className="h-[500px]">
+                    <ChartFactory spec={spec} />
+                  </div>
+                ))}
               </CardContent>
             </Card>
 
