@@ -19,6 +19,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { ScatterChartRenderer } from '@/components/analytics/ScatterChartRenderer'
 import { HeatmapRenderer } from '@/components/analytics/HeatmapRenderer'
 import { GaugeCard } from '@/components/analytics/GaugeCard'
+import { AnalyticsMap } from '@/components/map/AnalyticsMap'
 import {
   Card,
   CardContent,
@@ -300,6 +301,35 @@ export default function AnalyticsPage() {
             />
           </div>
         ) : null}
+
+        {/* ── Geospatial Risk & Demand Map ─────────────── */}
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-semibold">Geospatial Risk & Demand Map</CardTitle>
+                <CardDescription className="text-xs">
+                  Province overlays · Pharmacy risk dots · Click province for breakdown
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
+                <span className="text-xs font-medium text-amber-400">
+                  {pharmacyMap.data?.pharmacies.filter(p => p.risk_level === 'critical').length ?? 0} critical sites
+                </span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <AnalyticsMap
+              pharmacies={pharmacyMap.data?.pharmacies ?? []}
+              riskHeatmap={riskHeatmap.data?.heatmap ?? []}
+              provinceDemand={provinceDemand.data?.provinces ?? []}
+              loading={pharmacyMap.loading || riskHeatmap.loading || provinceDemand.loading}
+              className="h-[520px] w-full"
+            />
+          </CardContent>
+        </Card>
 
         {/* ── Row 2: Sales Trend + Risk Distribution ───── */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
