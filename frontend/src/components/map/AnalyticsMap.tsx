@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react'
 import maplibregl from 'maplibre-gl'
-import { Layers, Eye, EyeOff, X, Activity } from 'lucide-react'
-import { SRI_LANKA_PROVINCES, PROVINCE_CENTROIDS } from '@/lib/sri-lanka-provinces'
-import type { PharmacyMapItem, RiskHeatmapItem, ProvinceDemandItem } from '@/types/analytics'
+import { Layers, X, Activity } from 'lucide-react'
+import { PROVINCE_CENTROIDS } from '@/lib/sri-lanka-provinces'
+import type { RiskHeatmapItem, ProvinceDemandItem } from '@/types/analytics'
 import { cn } from '@/lib/utils'
 
 // ── Types ───────────────────────────────────────────────────────
@@ -12,7 +12,6 @@ import { cn } from '@/lib/utils'
 type OverlayMode = 'risk' | 'demand' | 'stockout' | 'none'
 
 interface AnalyticsMapProps {
-  pharmacies: PharmacyMapItem[]
   riskHeatmap: RiskHeatmapItem[]
   provinceDemand: ProvinceDemandItem[]
   loading?: boolean
@@ -20,13 +19,6 @@ interface AnalyticsMapProps {
 }
 
 // ── Constants ───────────────────────────────────────────────────
-
-const RISK_DOT_COLORS: Record<string, string> = {
-  critical: '#ef4444',
-  high:     '#f97316',
-  medium:   '#f59e0b',
-  low:      '#10b981',
-}
 
 const OVERLAY_LABELS: Record<OverlayMode, string> = {
   risk:     'Risk Score',
@@ -119,21 +111,12 @@ function OverlayLegend({ mode }: { mode: OverlayMode }) {
       <LegendRow color="#991b1b" label="Many" />
     </div>
   )
-  return (
-    <div className="space-y-1">
-      <p className="mb-2 text-xs font-semibold text-slate-200 uppercase tracking-wide">Pharmacy Risk</p>
-      <LegendRow color="#10b981" label="Low" />
-      <LegendRow color="#f59e0b" label="Medium" />
-      <LegendRow color="#f97316" label="High" />
-      <LegendRow color="#ef4444" label="Critical" />
-    </div>
-  )
+  return null
 }
 
 // ── Main Component ───────────────────────────────────────────────
 
 export function AnalyticsMap({
-  pharmacies,
   riskHeatmap,
   provinceDemand,
   loading = false,
@@ -145,10 +128,18 @@ export function AnalyticsMap({
 
   const [mapLoaded, setMapLoaded] = useState(false)
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('risk')
-  const [showPharmacies, setShowPharmacies] = useState(true)
-  const [showPulse, setShowPulse] = useState(true)
   const [showControls, setShowControls] = useState(true)
   const [selectedProvince, setSelectedProvince] = useState<string | null>(null)
+  const [geoBoundariesData, setGeoBoundariesData] = useState<GeoJSON.FeatureCollection | null>(null)
+
+  // ── Load GeoJSON boundaries ─────────────────────────────────
+
+  useEffect(() => {
+    fetch('/geoBoundaries-LKA-ADM1.geojson')
+      .then((res) => res.json())
+      .then((data: GeoJSON.FeatureCollection) => setGeoBoundariesData(data))
+      .catch((err) => console.error('Failed to load province boundaries:', err))
+  }, [])
 
   // ── Derived data ────────────────────────────────────────────
 
@@ -169,18 +160,22 @@ export function AnalyticsMap({
     [riskHeatmap],
   )
 
-  // Province GeoJSON enriched with analytics properties
+  // Province GeoJSON from real boundaries enriched with analytics properties
   const provinceGeoJSON = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!geoBoundariesData) return { type: 'FeatureCollection', features: [] }
     return {
       type: 'FeatureCollection',
-      features: SRI_LANKA_PROVINCES.features.map((f) => {
-        const name = f.properties?.province as string
-        const risk = riskByProvince[name]
-        const demand = demandByProvince[name]
+      features: geoBoundariesData.features.map((f) => {
+        const shapeName = (f.properties?.shapeName as string) ?? ''
+        // Strip " Province" suffix to get the key used in analytics data
+        const province = shapeName.replace(/ Province$/, '')
+        const risk = riskByProvince[province]
+        const demand = demandByProvince[province]
         return {
           ...f,
           properties: {
             ...f.properties,
+            province,
             avg_risk_score:  risk?.avg_risk_score  ?? 0,
             critical_count:  risk?.critical         ?? 0,
             high_count:      risk?.high             ?? 0,
@@ -193,38 +188,7 @@ export function AnalyticsMap({
         }
       }),
     }
-  }, [riskByProvince, demandByProvince])
-
-  // Pharmacy GeoJSON — all pharmacies as points
-  const pharmacyGeoJSON = useMemo<GeoJSON.FeatureCollection>(() => ({
-    type: 'FeatureCollection',
-    features: pharmacies.map((p) => ({
-      type: 'Feature',
-      properties: {
-        name:          p.pharmacy_name,
-        province:      p.province,
-        district:      p.district,
-        risk_level:    p.risk_level,
-        risk_score:    p.risk_score,
-        reorder_units: p.recommended_reorder_units,
-        is_urban:      p.is_urban,
-        pharmacy_type: p.pharmacy_type,
-      },
-      geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-    })),
-  }), [pharmacies])
-
-  // Critical-only GeoJSON for pulsing layer
-  const criticalGeoJSON = useMemo<GeoJSON.FeatureCollection>(() => ({
-    type: 'FeatureCollection',
-    features: pharmacies
-      .filter((p) => p.risk_level === 'critical')
-      .map((p) => ({
-        type: 'Feature',
-        properties: { name: p.pharmacy_name },
-        geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-      })),
-  }), [pharmacies])
+  }, [geoBoundariesData, riskByProvince, demandByProvince])
 
   // Province centroid GeoJSON for labels
   const centroidGeoJSON = useMemo<GeoJSON.FeatureCollection>(() => ({
@@ -271,7 +235,7 @@ export function AnalyticsMap({
       map.addSource('provinces', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
-        promoteId: 'province', // use province name as feature ID for feature-state
+        promoteId: 'province',
       })
 
       // Base fill — color driven by overlay mode (updated via setPaintProperty)
@@ -361,125 +325,6 @@ export function AnalyticsMap({
         },
       })
 
-      // ── Pharmacy dots ──────────────────────────────────────
-
-      map.addSource('pharmacies', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-      })
-
-      map.addLayer({
-        id: 'pharmacy-dots',
-        type: 'circle',
-        source: 'pharmacies',
-        paint: {
-          'circle-color': [
-            'match', ['get', 'risk_level'],
-            'critical', '#ef4444',
-            'high',     '#f97316',
-            'medium',   '#f59e0b',
-            'low',      '#10b981',
-            '#94a3b8',
-          ],
-          'circle-radius': [
-            'interpolate', ['linear'], ['get', 'risk_score'],
-            0,   3,
-            30,  4,
-            60,  5.5,
-            85,  7,
-            100, 9,
-          ],
-          'circle-stroke-color': [
-            'match', ['get', 'risk_level'],
-            'critical', '#fca5a5',
-            'high',     '#fdba74',
-            '#0f172a',
-          ],
-          'circle-stroke-width': [
-            'match', ['get', 'risk_level'],
-            'critical', 1.5,
-            'high', 1,
-            0.5,
-          ],
-          'circle-opacity': 0.88,
-        },
-      })
-
-      // ── Pulsing dot image for critical pharmacies ──────────
-
-      const PULSE_SIZE = 90
-      const pulsingDot = {
-        width: PULSE_SIZE,
-        height: PULSE_SIZE,
-        data: new Uint8Array(PULSE_SIZE * PULSE_SIZE * 4),
-        context: null as CanvasRenderingContext2D | null,
-
-        onAdd() {
-          const canvas = document.createElement('canvas')
-          canvas.width = this.width
-          canvas.height = this.height
-          this.context = canvas.getContext('2d')
-        },
-
-        render() {
-          const t = (performance.now() % 1800) / 1800
-          const center = this.width / 2
-          const coreR = center * 0.18
-          const ctx = this.context
-          if (!ctx) return false
-
-          ctx.clearRect(0, 0, this.width, this.height)
-
-          // Expanding outer ring
-          const ringR = center * 0.62 * t + coreR
-          ctx.beginPath()
-          ctx.arc(center, center, ringR, 0, Math.PI * 2)
-          ctx.fillStyle = `rgba(239, 68, 68, ${0.55 * (1 - t)})`
-          ctx.fill()
-
-          // Middle glow
-          ctx.beginPath()
-          ctx.arc(center, center, coreR * 1.6, 0, Math.PI * 2)
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.5)'
-          ctx.fill()
-
-          // Core dot
-          ctx.beginPath()
-          ctx.arc(center, center, coreR, 0, Math.PI * 2)
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.95)'
-          ctx.fill()
-
-          // White centre spark
-          ctx.beginPath()
-          ctx.arc(center, center, coreR * 0.45, 0, Math.PI * 2)
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
-          ctx.fill()
-
-          this.data = ctx.getImageData(0, 0, this.width, this.height).data
-          map.triggerRepaint()
-          return true
-        },
-      }
-
-      map.addImage('pulse-dot', pulsingDot as Parameters<typeof map.addImage>[1], { pixelRatio: 2 })
-
-      map.addSource('critical-pharmacies', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-      })
-
-      map.addLayer({
-        id: 'critical-pulse',
-        type: 'symbol',
-        source: 'critical-pharmacies',
-        layout: {
-          'icon-image': 'pulse-dot',
-          'icon-size': 1,
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-        },
-      })
-
       // ── Province hover interactions ────────────────────────
 
       map.on('mousemove', 'province-fill', (e) => {
@@ -489,7 +334,6 @@ export function AnalyticsMap({
         const name = feature.properties?.province as string | undefined
         if (!name) return
 
-        // Clear previous hover state
         if (hoveredIdRef.current !== null) {
           map.setFeatureState(
             { source: 'provinces', id: hoveredIdRef.current },
@@ -516,40 +360,6 @@ export function AnalyticsMap({
         if (name) setSelectedProvince((prev) => (prev === name ? null : name))
       })
 
-      // ── Pharmacy click popup ───────────────────────────────
-
-      map.on('click', 'pharmacy-dots', (e) => {
-        const f = e.features?.[0]
-        if (!f || f.geometry.type !== 'Point') return
-        const coords = f.geometry.coordinates as [number, number]
-        const p = f.properties as Record<string, unknown>
-        const riskColor = RISK_DOT_COLORS[p.risk_level as string] ?? '#94a3b8'
-        new maplibregl.Popup({ offset: 10, maxWidth: '240px' })
-          .setLngLat(coords)
-          .setHTML(`
-            <div style="font-size:12px;line-height:1.5">
-              <div style="font-weight:700;margin-bottom:4px">${p.name}</div>
-              <div style="color:#94a3b8">${p.district} · ${p.province}</div>
-              <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
-                <span style="width:10px;height:10px;border-radius:50%;background:${riskColor};display:inline-block"></span>
-                <span style="font-weight:600;color:${riskColor};text-transform:capitalize">${p.risk_level} risk</span>
-                <span style="color:#94a3b8">· score ${p.risk_score}</span>
-              </div>
-              ${p.reorder_units ? `<div style="margin-top:4px;color:#f59e0b">Reorder: ${Number(p.reorder_units).toLocaleString()} units</div>` : ''}
-              <div style="margin-top:2px;color:#64748b;font-size:11px">${p.pharmacy_type ?? ''} ${p.is_urban ? '· Urban' : '· Rural'}</div>
-            </div>
-          `)
-          .addTo(map)
-        e.stopPropagation()
-      })
-
-      map.on('mouseenter', 'pharmacy-dots', () => {
-        map.getCanvas().style.cursor = 'pointer'
-      })
-      map.on('mouseleave', 'pharmacy-dots', () => {
-        map.getCanvas().style.cursor = ''
-      })
-
       setMapLoaded(true)
     })
 
@@ -572,17 +382,6 @@ export function AnalyticsMap({
     lbl?.setData(centroidGeoJSON)
   }, [provinceGeoJSON, centroidGeoJSON, mapLoaded])
 
-  // ── Update pharmacy source data ─────────────────────────────
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !mapLoaded) return
-    const pharSrc = map.getSource('pharmacies') as maplibregl.GeoJSONSource | undefined
-    pharSrc?.setData(pharmacyGeoJSON)
-    const critSrc = map.getSource('critical-pharmacies') as maplibregl.GeoJSONSource | undefined
-    critSrc?.setData(criticalGeoJSON)
-  }, [pharmacyGeoJSON, criticalGeoJSON, mapLoaded])
-
   // ── Update province fill colour when overlay mode or data changes ──
 
   useEffect(() => {
@@ -591,22 +390,6 @@ export function AnalyticsMap({
     const color = buildFillColor(overlayMode, maxUnits, maxCritical)
     map.setPaintProperty('province-fill', 'fill-color', color)
   }, [overlayMode, maxUnits, maxCritical, mapLoaded])
-
-  // ── Toggle pharmacy layer ───────────────────────────────────
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !mapLoaded) return
-    map.setLayoutProperty('pharmacy-dots', 'visibility', showPharmacies ? 'visible' : 'none')
-  }, [showPharmacies, mapLoaded])
-
-  // ── Toggle critical pulse layer ─────────────────────────────
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !mapLoaded) return
-    map.setLayoutProperty('critical-pulse', 'visibility', showPulse && showPharmacies ? 'visible' : 'none')
-  }, [showPulse, showPharmacies, mapLoaded])
 
   // ── Selected province data ──────────────────────────────────
 
@@ -671,75 +454,16 @@ export function AnalyticsMap({
                 ))}
               </div>
             </div>
-
-            {/* Pharmacy dot toggle */}
-            <div>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                Layers
-              </p>
-              <div className="space-y-1.5">
-                <label className="flex cursor-pointer items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-xs text-slate-300">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                    Pharmacy dots
-                  </span>
-                  <button
-                    onClick={() => setShowPharmacies((v) => !v)}
-                    className={cn(
-                      'rounded p-0.5 transition-colors',
-                      showPharmacies ? 'text-cyan-400 hover:text-cyan-300' : 'text-slate-500 hover:text-slate-400',
-                    )}
-                  >
-                    {showPharmacies ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                  </button>
-                </label>
-
-                <label className="flex cursor-pointer items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-xs text-slate-300">
-                    <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-400" />
-                    Critical pulse
-                  </span>
-                  <button
-                    onClick={() => setShowPulse((v) => !v)}
-                    disabled={!showPharmacies}
-                    className={cn(
-                      'rounded p-0.5 transition-colors',
-                      !showPharmacies && 'opacity-30',
-                      showPulse ? 'text-cyan-400 hover:text-cyan-300' : 'text-slate-500 hover:text-slate-400',
-                    )}
-                  >
-                    {showPulse ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                  </button>
-                </label>
-              </div>
-            </div>
-
-            {/* Stats summary */}
-            {pharmacies.length > 0 && (
-              <div className="border-t border-slate-700 pt-2 grid grid-cols-2 gap-1.5">
-                {(
-                  [
-                    { label: 'Critical', count: pharmacies.filter(p => p.risk_level === 'critical').length, color: '#ef4444' },
-                    { label: 'High',     count: pharmacies.filter(p => p.risk_level === 'high').length,     color: '#f97316' },
-                    { label: 'Medium',   count: pharmacies.filter(p => p.risk_level === 'medium').length,   color: '#f59e0b' },
-                    { label: 'Low',      count: pharmacies.filter(p => p.risk_level === 'low').length,      color: '#10b981' },
-                  ] as { label: string; count: number; color: string }[]
-                ).map(({ label, count, color }) => (
-                  <div key={label} className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: color }} />
-                    <span className="text-[11px] text-slate-400">{label}: <span className="font-semibold text-slate-200">{count}</span></span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>
 
       {/* ── Legend (bottom-left) ────────────────────────────── */}
-      <div className="absolute bottom-8 left-3 z-20 rounded-lg border border-slate-600 bg-slate-900/92 p-3 backdrop-blur shadow-xl min-w-[140px]">
-        <OverlayLegend mode={overlayMode} />
-      </div>
+      {overlayMode !== 'none' && (
+        <div className="absolute bottom-8 left-3 z-20 rounded-lg border border-slate-600 bg-slate-900/92 p-3 backdrop-blur shadow-xl min-w-[140px]">
+          <OverlayLegend mode={overlayMode} />
+        </div>
+      )}
 
       {/* ── Province info panel (right side, on click) ───────── */}
       {selectedProvince && selectedData && (

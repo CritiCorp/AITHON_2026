@@ -322,10 +322,9 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent className="p-0">
             <AnalyticsMap
-              pharmacies={pharmacyMap.data?.pharmacies ?? []}
               riskHeatmap={riskHeatmap.data?.heatmap ?? []}
               provinceDemand={provinceDemand.data?.provinces ?? []}
-              loading={pharmacyMap.loading || riskHeatmap.loading || provinceDemand.loading}
+              loading={riskHeatmap.loading || provinceDemand.loading}
               className="h-[520px] w-full"
             />
           </CardContent>
