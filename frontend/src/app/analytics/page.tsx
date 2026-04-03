@@ -19,6 +19,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { ScatterChartRenderer } from '@/components/analytics/ScatterChartRenderer'
 import { HeatmapRenderer } from '@/components/analytics/HeatmapRenderer'
 import { GaugeCard } from '@/components/analytics/GaugeCard'
+import { DiseaseSignalsPanel } from '@/components/analytics/DiseaseSignalsPanel'
 import { AnalyticsMap } from '@/components/map/AnalyticsMap'
 import {
   Card,
@@ -301,6 +302,9 @@ export default function AnalyticsPage() {
             />
           </div>
         ) : null}
+
+        {/* ── Disease Signals Panel ────────────────────── */}
+        <DiseaseSignalsPanel days={days} province={province || undefined} />
 
         {/* ── Geospatial Risk & Demand Map ─────────────── */}
         <Card className="overflow-hidden">

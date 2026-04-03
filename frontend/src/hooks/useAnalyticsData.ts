@@ -15,6 +15,8 @@ import type {
   DiseaseDemandCorrelationResponse,
   SeasonalPatternResponse,
   ExpiryTimelineResponse,
+  DiseaseSignalsResponse,
+  DiseaseSignalsImpactResponse,
 } from '@/types/analytics'
 
 interface FetchState<T> {
@@ -179,5 +181,19 @@ export function useExpiryTimeline(province?: string, daysAhead?: number) {
       ...(province ? { province } : {}),
       ...(daysAhead !== undefined ? { days_ahead: String(daysAhead) } : {}),
     }
+  )
+}
+
+export function useDiseaseSignals(days?: number, province?: string) {
+  return useFetch<DiseaseSignalsResponse>('/api/analytics/disease-signals', {
+    ...(days !== undefined ? { days: String(days) } : {}),
+    ...(province ? { province } : {}),
+  })
+}
+
+export function useDiseaseSignalsImpact(days?: number) {
+  return useFetch<DiseaseSignalsImpactResponse>(
+    '/api/analytics/charts/disease-signals-impact',
+    { ...(days !== undefined ? { days: String(days) } : {}) }
   )
 }
