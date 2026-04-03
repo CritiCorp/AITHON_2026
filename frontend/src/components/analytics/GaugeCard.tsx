@@ -49,13 +49,15 @@ export function GaugeCard({ item, threshold }: GaugeCardProps) {
         </span>
       </div>
 
-      <div className="relative h-[80px]">
-        <ResponsiveContainer width="100%" height="100%">
+      {/* Arc occupies full height; cy=100% places the pivot at bottom edge so
+          the semicircle is fully visible above and never clips the arc. */}
+      <div className="h-[90px] overflow-hidden">
+        <ResponsiveContainer width="100%" height="160%">
           <RadialBarChart
             cx="50%"
-            cy="90%"
-            innerRadius="60%"
-            outerRadius="90%"
+            cy="70%"
+            innerRadius="55%"
+            outerRadius="80%"
             startAngle={180}
             endAngle={0}
             data={gaugeData}
@@ -63,19 +65,21 @@ export function GaugeCard({ item, threshold }: GaugeCardProps) {
             <RadialBar dataKey="value" cornerRadius={4} background={false} />
           </RadialBarChart>
         </ResponsiveContainer>
-        <div className="absolute bottom-0 left-0 right-0 text-center">
-          <span
-            className={cn(
-              'text-xl font-bold tabular-nums',
-              isCritical && 'text-red-500',
-              isWarning && 'text-amber-500',
-              !isCritical && !isWarning && 'text-green-500'
-            )}
-          >
-            {item.avg_stock_days.toFixed(1)}
-          </span>
-          <span className="ml-1 text-xs text-muted-foreground">days</span>
-        </div>
+      </div>
+
+      {/* Value text sits below the arc, clearly separated */}
+      <div className="-mt-2 text-center">
+        <span
+          className={cn(
+            'text-xl font-bold tabular-nums',
+            isCritical && 'text-red-500',
+            isWarning && 'text-amber-500',
+            !isCritical && !isWarning && 'text-green-500'
+          )}
+        >
+          {item.avg_stock_days.toFixed(1)}
+        </span>
+        <span className="ml-1 text-xs text-muted-foreground">days</span>
       </div>
 
       <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">

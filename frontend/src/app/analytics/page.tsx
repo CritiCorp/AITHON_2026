@@ -14,10 +14,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { RefreshCw, AlertCircle, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { RefreshCw, AlertCircle, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { ScatterChartRenderer } from '@/components/analytics/ScatterChartRenderer'
-import { HeatmapRenderer } from '@/components/analytics/HeatmapRenderer'
 import { GaugeCard } from '@/components/analytics/GaugeCard'
 import { DiseaseSignalsPanel } from '@/components/analytics/DiseaseSignalsPanel'
 import { AnalyticsMap } from '@/components/map/AnalyticsMap'
@@ -37,9 +35,7 @@ import {
   useDrugTypeBreakdown,
   useExpiryTimeline,
   useStockStatus,
-  useRiskHeatmap,
   usePharmacyMap,
-  useDiseaseDemandCorrelation,
   useSeasonalPattern,
   useCategoryStockoutRisk,
 } from '@/hooks/useAnalyticsData'
@@ -206,9 +202,8 @@ export default function AnalyticsPage() {
   const drugTypeBreakdown = useDrugTypeBreakdown(days, province)
   const expiryTimeline = useExpiryTimeline(province)
   const stockStatus = useStockStatus(province)
-  const riskHeatmap = useRiskHeatmap(province)
   const pharmacyMap = usePharmacyMap(province)
-  const diseaseDemand = useDiseaseDemandCorrelation(days, province)
+  const [pharmacyOpen, setPharmacyOpen] = useState(true)
   const seasonalPattern = useSeasonalPattern(province)
   const categoryRisk = useCategoryStockoutRisk()
 
@@ -326,9 +321,9 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent className="p-0">
             <AnalyticsMap
-              riskHeatmap={riskHeatmap.data?.heatmap ?? []}
+              riskHeatmap={[]}
               provinceDemand={provinceDemand.data?.provinces ?? []}
-              loading={riskHeatmap.loading || provinceDemand.loading}
+              loading={provinceDemand.loading}
               className="h-[520px] w-full"
             />
           </CardContent>
@@ -650,70 +645,28 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        {/* ── Row 6: Risk Heatmap (full width) ─────────── */}
+        {/* ── Row 6: Stock Status (full width) ─────────── */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Risk Heatmap</CardTitle>
+            <CardTitle className="text-sm font-semibold">Stock Status</CardTitle>
             <CardDescription className="text-xs">
-              Province × risk level — SKU count and average risk score
-              {riskHeatmap.data ? ` · as of ${riskHeatmap.data.as_of_date}` : ''}
+              Drugs below {stockStatus.data?.threshold_days ?? 14}-day threshold
+              {stockStatus.data ? ` · ${stockStatus.data.items.length} flagged` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {riskHeatmap.loading ? (
+            {stockStatus.loading ? (
               <SectionSkeleton rows={4} />
-            ) : riskHeatmap.error ? (
-              <SectionError message={riskHeatmap.error} onRetry={riskHeatmap.refetch} />
-            ) : riskHeatmap.data ? (
-              <HeatmapRenderer data={riskHeatmap.data.heatmap} />
-            ) : null}
-          </CardContent>
-        </Card>
-
-        {/* ── Row 7: Disease–Demand Scatter + Gauges ───── */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-
-          {/* Disease–Demand Correlation (60%) */}
-          <Card className="lg:col-span-3">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Disease–Demand Correlation</CardTitle>
-              <CardDescription className="text-xs">
-                Reported disease cases vs units sold — last {days} days
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[320px]">
-                {diseaseDemand.loading ? (
-                  <SectionSkeleton rows={5} />
-                ) : diseaseDemand.error ? (
-                  <SectionError message={diseaseDemand.error} onRetry={diseaseDemand.refetch} />
-                ) : diseaseDemand.data ? (
-                  <ScatterChartRenderer points={diseaseDemand.data.points} />
-                ) : null}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Stock Status Gauges (40%) */}
-          <Card className="lg:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Stock Status</CardTitle>
-              <CardDescription className="text-xs">
-                Drugs below {stockStatus.data?.threshold_days ?? 14}-day threshold
-                {stockStatus.data ? ` · ${stockStatus.data.items.length} flagged` : ''}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {stockStatus.loading ? (
-                <SectionSkeleton rows={4} />
-              ) : stockStatus.error ? (
-                <SectionError message={stockStatus.error} onRetry={stockStatus.refetch} />
-              ) : stockStatus.data?.items.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  All drugs above threshold
-                </p>
-              ) : stockStatus.data ? (
-                <div className="grid max-h-[340px] grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-1">
+            ) : stockStatus.error ? (
+              <SectionError message={stockStatus.error} onRetry={stockStatus.refetch} />
+            ) : stockStatus.data?.items.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                All drugs above threshold
+              </p>
+            ) : stockStatus.data ? (
+              /* max-h shows ~2 rows of 4 cards (≈8 items) then scrolls */
+              <div className="max-h-[560px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {stockStatus.data.items.map((item) => (
                     <GaugeCard
                       key={item.drug_id}
@@ -722,77 +675,96 @@ export default function AnalyticsPage() {
                     />
                   ))}
                 </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* ── Row 8: Pharmacy Risk Table (full width) ─── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Pharmacy Risk Register</CardTitle>
-            <CardDescription className="text-xs">
-              Pharmacies sorted by risk score — highest risk first
-              {pharmacyMap.data
-                ? ` · ${pharmacyMap.data.pharmacies.length} pharmacies`
-                : ''}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {pharmacyMap.loading ? (
-              <SectionSkeleton rows={5} />
-            ) : pharmacyMap.error ? (
-              <SectionError message={pharmacyMap.error} onRetry={pharmacyMap.refetch} />
-            ) : pharmacyMap.data ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="pb-2 pr-4 text-left text-xs font-medium text-muted-foreground">Pharmacy</th>
-                      <th className="pb-2 px-3 text-left text-xs font-medium text-muted-foreground">Province</th>
-                      <th className="pb-2 px-3 text-left text-xs font-medium text-muted-foreground">District</th>
-                      <th className="pb-2 px-3 text-left text-xs font-medium text-muted-foreground">Type</th>
-                      <th className="pb-2 px-3 text-center text-xs font-medium text-muted-foreground">Risk</th>
-                      <th className="pb-2 px-3 text-right text-xs font-medium text-muted-foreground">Risk Score</th>
-                      <th className="pb-2 pl-3 text-right text-xs font-medium text-muted-foreground">Reorder Units</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {[...pharmacyMap.data.pharmacies]
-                      .sort((a, b) => (b.risk_score ?? 0) - (a.risk_score ?? 0))
-                      .map((p) => (
-                        <tr key={p.pharmacy_id} className="group hover:bg-muted/40">
-                          <td className="py-2 pr-4 font-medium">{p.pharmacy_name}</td>
-                          <td className="py-2 px-3 text-muted-foreground">{p.province}</td>
-                          <td className="py-2 px-3 text-muted-foreground">{p.district}</td>
-                          <td className="py-2 px-3 text-muted-foreground">
-                            {p.pharmacy_type}
-                            {p.is_urban && <span className="ml-1 text-[10px] text-primary">Urban</span>}
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <span
-                              className="rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
-                              style={{
-                                backgroundColor: `${RISK_COLORS[p.risk_level]}20`,
-                                color: RISK_COLORS[p.risk_level],
-                              }}
-                            >
-                              {p.risk_level}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-right tabular-nums font-medium">
-                            {p.risk_score != null ? p.risk_score.toFixed(2) : '—'}
-                          </td>
-                          <td className="py-2 pl-3 text-right tabular-nums text-muted-foreground">
-                            {p.recommended_reorder_units != null ? p.recommended_reorder_units.toLocaleString() : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
               </div>
             ) : null}
           </CardContent>
+        </Card>
+
+        {/* ── Row 7: Pharmacy Risk Register (collapsible) ─── */}
+        <Card>
+          <CardHeader
+            className="cursor-pointer pb-2 select-none"
+            onClick={() => setPharmacyOpen((o) => !o)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-semibold">Pharmacy Risk Register</CardTitle>
+                <CardDescription className="text-xs">
+                  Pharmacies sorted by risk score — highest risk first
+                  {pharmacyMap.data
+                    ? ` · ${pharmacyMap.data.pharmacies.length} pharmacies`
+                    : ''}
+                </CardDescription>
+              </div>
+              {pharmacyOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              )}
+            </div>
+          </CardHeader>
+          {pharmacyOpen && (
+            <CardContent>
+              {pharmacyMap.loading ? (
+                <SectionSkeleton rows={5} />
+              ) : pharmacyMap.error ? (
+                <SectionError message={pharmacyMap.error} onRetry={pharmacyMap.refetch} />
+              ) : pharmacyMap.data ? (
+                /* sticky header + scrollable body showing ~10 rows */
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-card z-10">
+                      <tr className="border-b border-border">
+                        <th className="pb-2 pr-4 text-left text-xs font-medium text-muted-foreground">Pharmacy</th>
+                        <th className="pb-2 px-3 text-left text-xs font-medium text-muted-foreground">Province</th>
+                        <th className="pb-2 px-3 text-left text-xs font-medium text-muted-foreground">District</th>
+                        <th className="pb-2 px-3 text-left text-xs font-medium text-muted-foreground">Type</th>
+                        <th className="pb-2 px-3 text-center text-xs font-medium text-muted-foreground">Risk</th>
+                        <th className="pb-2 px-3 text-right text-xs font-medium text-muted-foreground">Risk Score</th>
+                        <th className="pb-2 pl-3 text-right text-xs font-medium text-muted-foreground">Reorder Units</th>
+                      </tr>
+                    </thead>
+                  </table>
+                  <div className="max-h-[380px] overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <tbody className="divide-y divide-border">
+                        {[...pharmacyMap.data.pharmacies]
+                          .sort((a, b) => (b.risk_score ?? 0) - (a.risk_score ?? 0))
+                          .map((p) => (
+                            <tr key={p.pharmacy_id} className="group hover:bg-muted/40">
+                              <td className="py-2 pr-4 font-medium">{p.pharmacy_name}</td>
+                              <td className="py-2 px-3 text-muted-foreground">{p.province}</td>
+                              <td className="py-2 px-3 text-muted-foreground">{p.district}</td>
+                              <td className="py-2 px-3 text-muted-foreground">
+                                {p.pharmacy_type}
+                                {p.is_urban && <span className="ml-1 text-[10px] text-primary">Urban</span>}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                                  style={{
+                                    backgroundColor: `${RISK_COLORS[p.risk_level]}20`,
+                                    color: RISK_COLORS[p.risk_level],
+                                  }}
+                                >
+                                  {p.risk_level}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-right tabular-nums font-medium">
+                                {p.risk_score != null ? p.risk_score.toFixed(2) : '—'}
+                              </td>
+                              <td className="py-2 pl-3 text-right tabular-nums text-muted-foreground">
+                                {p.recommended_reorder_units != null ? p.recommended_reorder_units.toLocaleString() : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+            </CardContent>
+          )}
         </Card>
 
       </main>
