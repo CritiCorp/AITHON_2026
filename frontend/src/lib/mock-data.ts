@@ -106,7 +106,7 @@ export const MOCK_PAYLOAD: HemasMindPayload = {
     },
   ],
 
-  chart: {
+  charts: [{
     id: 'demand-forecast',
     type: 'line',
     title: 'Paracetamol Demand — Actual vs Forecast',
@@ -129,7 +129,7 @@ export const MOCK_PAYLOAD: HemasMindPayload = {
         stroke_dasharray: '4 3',
       },
     ],
-  },
+  }],
 
   insights: [
     'Dengue cases in Western Province surged to 2,180 this week — a 340% increase over the 4-week rolling average. MOH has issued a Level 3 public health advisory.',

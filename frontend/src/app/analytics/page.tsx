@@ -420,8 +420,8 @@ export default function AnalyticsPage() {
                         <YAxis {...axisStyle} width={48} />
                         <Tooltip
                           contentStyle={{ fontSize: 12 }}
-                          formatter={(value: number, _: string, entry: { payload: { drug_count: number } }) => [
-                            `${value.toLocaleString()} units (${entry.payload.drug_count} drugs)`,
+                          formatter={(value: number, _: string, entry: { payload?: { drug_count?: number } }) => [
+                            `${value.toLocaleString()} units (${entry.payload?.drug_count ?? 0} drugs)`,
                             'Total Units',
                           ]}
                         />
