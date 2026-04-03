@@ -205,3 +205,43 @@ export interface ExpiryTimelineResponse {
   days_ahead: number
   as_of_date: string
 }
+
+// ── Disease Signal Endpoints ──────────────────────────────────
+
+export interface DiseaseSignalItem {
+  signal_date: string
+  disease_name: string
+  province: string | null
+  district: string | null
+  reported_cases: number
+  affected_atc_category: string | null
+  shock_multiplier: number
+  source_name: string | null
+}
+
+export interface DiseaseSignalSummary {
+  total_signals: number
+  max_shock_multiplier: number
+  active_disease_count: number
+  total_reported_cases: number
+}
+
+export interface DiseaseSignalsResponse {
+  signals: DiseaseSignalItem[]
+  summary: DiseaseSignalSummary
+  date_range: DateRange
+  province_filter: string | null
+}
+
+export interface DiseaseSignalImpactItem {
+  disease_name: string
+  max_shock_multiplier: number
+  total_cases: number
+  signal_count: number
+  primary_atc_category: string | null
+}
+
+export interface DiseaseSignalsImpactResponse {
+  diseases: DiseaseSignalImpactItem[]
+  date_range: DateRange
+}
