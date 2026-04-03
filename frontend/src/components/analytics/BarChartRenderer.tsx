@@ -11,7 +11,8 @@ import {
   YAxis,
 } from 'recharts'
 import { ReferenceLines } from './ReferenceLines'
-import type { ChartSpec } from '@/types/hemas-mind-payload'
+import type { ChartSpec, Granularity } from '@/types/hemas-mind-payload'
+import { formatXTick } from '@/lib/chart-utils'
 
 interface TooltipPayloadEntry {
   color: string
@@ -62,9 +63,10 @@ const axisStyle = {
 
 interface BarChartRendererProps {
   spec: ChartSpec
+  granularity?: Granularity
 }
 
-export function BarChartRenderer({ spec }: BarChartRendererProps) {
+export function BarChartRenderer({ spec, granularity }: BarChartRendererProps) {
   const { data, series, x_axis_key, unit, reference_lines } = spec
 
   return (
@@ -75,7 +77,7 @@ export function BarChartRenderer({ spec }: BarChartRendererProps) {
           stroke="hsl(217 33% 19%)"
           vertical={false}
         />
-        <XAxis dataKey={x_axis_key} {...axisStyle} />
+        <XAxis dataKey={x_axis_key} {...axisStyle} tickFormatter={(v: string) => formatXTick(v, granularity)} />
         <YAxis
           {...axisStyle}
           tickFormatter={(v: number) => v.toLocaleString()}

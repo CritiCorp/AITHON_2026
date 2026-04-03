@@ -13,7 +13,8 @@ import {
   YAxis,
 } from 'recharts'
 import { ReferenceLines } from './ReferenceLines'
-import type { ChartSpec } from '@/types/hemas-mind-payload'
+import type { ChartSpec, Granularity } from '@/types/hemas-mind-payload'
+import { formatXTick } from '@/lib/chart-utils'
 
 // ── Custom tooltip ────────────────────────────────────────────
 interface TooltipPayloadEntry {
@@ -65,9 +66,10 @@ const axisStyle = {
 
 interface LineChartRendererProps {
   spec: ChartSpec
+  granularity?: Granularity
 }
 
-export function LineChartRenderer({ spec }: LineChartRendererProps) {
+export function LineChartRenderer({ spec, granularity }: LineChartRendererProps) {
   const {
     data,
     series,
@@ -99,7 +101,7 @@ export function LineChartRenderer({ spec }: LineChartRendererProps) {
             stroke="hsl(217 33% 19%)"
             vertical={false}
           />
-          <XAxis dataKey={x_axis_key} {...axisStyle} />
+          <XAxis dataKey={x_axis_key} {...axisStyle} tickFormatter={(v: string) => formatXTick(v, granularity)} />
           <YAxis
             {...axisStyle}
             tickFormatter={(v: number) => v.toLocaleString()}

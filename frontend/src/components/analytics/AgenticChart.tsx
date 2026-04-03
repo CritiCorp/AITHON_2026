@@ -12,7 +12,7 @@ import { InsightsPanel } from '@/components/dashboard/InsightsPanel'
 import { ActionsPanel } from '@/components/dashboard/ActionsPanel'
 import { RegionBadge } from '@/components/shared/RegionBadge'
 import { ConfidenceIndicator } from '@/components/agent/ConfidenceIndicator'
-import type { HemasMindPayload } from '@/types/hemas-mind-payload'
+import type { Granularity, HemasMindPayload } from '@/types/hemas-mind-payload'
 
 interface AgenticChartProps {
   payload: HemasMindPayload
@@ -29,6 +29,7 @@ export function AgenticChart({ payload, isLoading }: AgenticChartProps) {
   if (!layout || !metadata) return null
 
   const chartList = charts ?? []
+  const granularity: Granularity = layout.granularity ?? 'daily'
 
   return (
     <div className="space-y-4">
@@ -73,7 +74,7 @@ export function AgenticChart({ payload, isLoading }: AgenticChartProps) {
           {/* Primary chart (first in array — always demand-forecast) */}
           {chartList[0] && (
             <div className="h-[400px]">
-              <ChartFactory spec={chartList[0]} />
+              <ChartFactory spec={chartList[0]} granularity={granularity} />
             </div>
           )}
         </CardContent>
@@ -92,7 +93,7 @@ export function AgenticChart({ payload, isLoading }: AgenticChartProps) {
               </CardHeader>
               <CardContent>
                 <div className="h-[280px]">
-                  <ChartFactory spec={spec} />
+                  <ChartFactory spec={spec} granularity={granularity} />
                 </div>
               </CardContent>
             </Card>

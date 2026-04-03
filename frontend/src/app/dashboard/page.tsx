@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Play, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -7,10 +8,12 @@ import { AgentStatusBar } from "@/components/agent/AgentStatusBar";
 import { AgentThoughtStream } from "@/components/agent/AgentThoughtStream";
 import { AgenticChart } from "@/components/analytics/AgenticChart";
 import { Button } from "@/components/ui/button";
+import { GranularitySelector } from "@/components/ui/GranularitySelector";
 import { usePayloadStore } from "@/store/payloadStore";
 import { useAgentStore } from "@/store/agentStore";
 import { useAgentStream } from "@/hooks/useAgentStream";
 import { useMockSeed } from "@/hooks/useMockSeed"; // MOCK: remove when backend is live
+import type { Granularity } from "@/types/hemas-mind-payload";
 
 export default function DashboardPage() {
   const { current: payload } = usePayloadStore();
@@ -18,17 +21,24 @@ export default function DashboardPage() {
   const { triggerRun } = useAgentStream();
   useMockSeed(); // MOCK: remove when backend is live
 
-  const handleRun = () => triggerRun("dengue_outbreak");
+  const [granularity, setGranularity] = useState<Granularity>("daily");
+
+  const handleRun = () => triggerRun("dengue_outbreak", granularity);
 
   return (
     <div className="flex min-h-screen flex-col">
       <PageHeader />
 
       <main className="max-w-screen-2xl mx-auto w-full flex-1 space-y-5 px-6 py-6">
-        {/* ── Top bar: agent pills + run button ── */}
+        {/* ── Top bar: agent pills + granularity selector + run button ── */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <AgentStatusBar />
           <div className="flex items-center gap-2">
+            <GranularitySelector
+              value={granularity}
+              onChange={setGranularity}
+              disabled={isStreaming}
+            />
             <Button asChild variant="secondary" className="gap-2">
               <Link href="/map">Open Map</Link>
             </Button>

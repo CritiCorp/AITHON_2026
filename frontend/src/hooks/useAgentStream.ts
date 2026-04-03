@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { io, type Socket } from 'socket.io-client'
 import { useAgentStore } from '@/store/agentStore'
 import { usePayloadStore } from '@/store/payloadStore'
-import type { AgentStreamEvent } from '@/types/hemas-mind-payload'
+import type { AgentStreamEvent, Granularity } from '@/types/hemas-mind-payload'
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:8000'
 
@@ -73,11 +73,11 @@ export function useAgentStream() {
    * Resets all agent state so the UI is clean for the new run.
    */
   const triggerRun = useCallback(
-    (scenario = 'dengue_outbreak') => {
+    (scenario = 'dengue_outbreak', granularity: Granularity = 'daily') => {
       if (!socketRef.current?.connected) return
       resetAll()
       setStreaming(true)
-      socketRef.current.emit('trigger_run', { scenario })
+      socketRef.current.emit('trigger_run', { scenario, granularity })
     },
     [resetAll, setStreaming]
   )

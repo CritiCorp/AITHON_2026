@@ -9,6 +9,7 @@ export type AgentStatus = 'idle' | 'running' | 'completed' | 'error'
 export type AgentName = 'sentinel' | 'orchestrator' | 'operator' | 'communicator'
 export type ThoughtType = 'thought' | 'action' | 'observation' | 'result' | 'error'
 export type ChartType = 'line' | 'bar' | 'area' | 'composed' | 'pie' | 'scatter'
+export type Granularity = 'daily' | 'monthly' | 'yearly'
 
 // ── Metadata ──────────────────────────────────────────────────
 export interface PayloadMetadata {
@@ -27,6 +28,8 @@ export interface PayloadLayout {
   regions_covered: string[]
   date_range: string
   source_module: string
+  /** Forecast time granularity — set by Communicator Agent, used for x-axis formatting */
+  granularity?: Granularity
 }
 
 // ── Alert banner ───────────────────────────────────────────────

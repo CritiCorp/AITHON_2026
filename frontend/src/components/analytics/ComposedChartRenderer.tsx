@@ -12,7 +12,8 @@ import {
   YAxis,
 } from 'recharts'
 import { ReferenceLines } from './ReferenceLines'
-import type { ChartSpec } from '@/types/hemas-mind-payload'
+import type { ChartSpec, Granularity } from '@/types/hemas-mind-payload'
+import { formatXTick } from '@/lib/chart-utils'
 
 interface TooltipPayloadEntry {
   color: string
@@ -63,13 +64,14 @@ const axisStyle = {
 
 interface ComposedChartRendererProps {
   spec: ChartSpec
+  granularity?: Granularity
 }
 
 /**
  * Renders a ComposedChart mixing Bar (comparison series) and Line (forecast/actual).
  * Series with `is_comparison=true` render as Bars; others render as Lines.
  */
-export function ComposedChartRenderer({ spec }: ComposedChartRendererProps) {
+export function ComposedChartRenderer({ spec, granularity }: ComposedChartRendererProps) {
   const { data, series, x_axis_key, unit, reference_lines } = spec
 
   return (
@@ -80,7 +82,7 @@ export function ComposedChartRenderer({ spec }: ComposedChartRendererProps) {
           stroke="hsl(217 33% 19%)"
           vertical={false}
         />
-        <XAxis dataKey={x_axis_key} {...axisStyle} />
+        <XAxis dataKey={x_axis_key} {...axisStyle} tickFormatter={(v: string) => formatXTick(v, granularity)} />
         <YAxis
           {...axisStyle}
           tickFormatter={(v: number) => v.toLocaleString()}
